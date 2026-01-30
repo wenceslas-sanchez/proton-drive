@@ -14,7 +14,6 @@ classifiers = [
     "Intended Audience :: Developers",
     "License :: OSI Approved :: GNU General Public License v3 (GPLv3)",
     "Programming Language :: Python :: 3.13",
-    "Topic :: Cloud :: Drive :: Security :: Cryptography",
 ]
 dependencies = [
     "httpx==0.28.1",

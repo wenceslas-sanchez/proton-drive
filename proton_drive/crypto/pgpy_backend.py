@@ -290,7 +290,3 @@ class PgpyBackend:
             raise SessionKeyError("Session key checksum mismatch")
 
         return SessionKey(algorithm=algorithm, key_data=key_data)
-
-
-# Create a default instance
-default_backend = PgpyBackend()

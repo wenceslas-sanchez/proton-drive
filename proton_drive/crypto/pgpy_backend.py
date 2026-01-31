@@ -10,10 +10,14 @@ from dataclasses import dataclass
 from typing import Any, Iterator
 
 import pgpy
+from pgpy.packet.fields import MPI
 
 from proton_drive.crypto.secure_bytes import SecureBytes
+from proton_drive.crypto.session_key import parse_pkesk_packet
 from proton_drive.exceptions import CryptoError, KeyDecryptionError, SessionKeyError
-from proton_drive.models.crypto import SessionKey, SymmetricAlgorithm
+from proton_drive.models.crypto import PKESKPacket, SessionKey, SymmetricAlgorithm
+
+_VALID_KEY_SIZES = (16, 24, 32)
 
 
 @dataclass
@@ -24,17 +28,14 @@ class PgpyPrivateKey:
 
     @property
     def key_id(self) -> str:
-        """Get the key ID."""
         return str(self._key.fingerprint.keyid)
 
     @property
     def fingerprint(self) -> str:
-        """Get the key fingerprint."""
         return str(self._key.fingerprint)
 
     @property
     def pgpy_key(self) -> pgpy.PGPKey:
-        """Get the underlying pgpy key object."""
         return self._key
 
 
@@ -48,7 +49,8 @@ class PgpyBackend:
         decrypted = backend.decrypt_message(encrypted, key, passphrase)
     """
 
-    def load_private_key(self, armored_key: str) -> PgpyPrivateKey:
+    @staticmethod
+    def load_private_key(armored_key: str) -> PgpyPrivateKey:
         """
         Load a private key from ASCII-armored format.
 
@@ -65,7 +67,8 @@ class PgpyBackend:
             key, _ = pgpy.PGPKey.from_blob(armored_key)
             return PgpyPrivateKey(_key=key)
         except Exception as e:
-            raise CryptoError(f"Failed to load private key: {e}") from e
+            msg = f"Failed to load private key: {e}"
+            raise CryptoError(msg) from e
 
     def decrypt_message(
         self,
@@ -89,20 +92,15 @@ class PgpyBackend:
         """
         try:
             message = pgpy.PGPMessage.from_blob(encrypted_message)
-
-            # Unlock key and decrypt
             with private_key.pgpy_key.unlock(passphrase.decode()):
                 decrypted = private_key.pgpy_key.decrypt(message)
-
-                # Handle both bytes and string results
-                if isinstance(decrypted.message, bytes):
-                    return decrypted.message
-                return decrypted.message.encode("utf-8")
-
+                return self._normalize_decrypted_content(decrypted.message)
         except pgpy.errors.PGPDecryptionError as e:
-            raise KeyDecryptionError(f"Failed to decrypt message: {e}") from e
+            msg = f"Failed to decrypt message: {e}"
+            raise KeyDecryptionError(msg) from e
         except Exception as e:
-            raise KeyDecryptionError(f"Decryption failed: {e}") from e
+            msg = f"Decryption failed: {e}"
+            raise KeyDecryptionError(msg) from e
 
     def extract_session_key(
         self,
@@ -112,9 +110,6 @@ class PgpyBackend:
     ) -> SessionKey:
         """
         Extract session key from a ContentKeyPacket.
-
-        The ContentKeyPacket is a PKESK packet. We need to decrypt it and
-        extract the symmetric session key.
 
         Args:
             content_key_packet: Raw bytes of the ContentKeyPacket (base64-decoded).
@@ -128,34 +123,16 @@ class PgpyBackend:
             SessionKeyError: If extraction fails.
         """
         try:
-            # Create a minimal valid PGP message from the PKESK packet
-            # by appending a dummy SEIPD packet
-            pgp_message = self._create_minimal_message(content_key_packet)
-
-            # Try to parse and decrypt
+            pkesk = parse_pkesk_packet(content_key_packet)
             with private_key.pgpy_key.unlock(passphrase.decode()):
-                # Use pgpy's internal session key extraction
-                # This is a workaround since pgpy doesn't directly expose session keys
-                message = pgpy.PGPMessage.from_blob(pgp_message)
-
-                # Decrypt - this will fail on the dummy data but we can extract
-                # the session key from the decryption attempt
-                try:
-                    decrypted = private_key.pgpy_key.decrypt(message)
-                    # If we get here, the message was somehow valid
-                    # Extract session key from the decryption result
-                    return self._extract_from_decrypted(decrypted)
-                except Exception:
-                    # Expected - fall back to manual extraction
-                    pass
-
-            # Fall back to manual PKESK parsing
-            return self._parse_pkesk_manual(content_key_packet, private_key, passphrase)
-
+                encryption_key = self._find_encryption_key(private_key.pgpy_key)
+                decrypted_payload = self._decrypt_session_key_mpi(encryption_key, pkesk)
+                return self._parse_session_key_payload(decrypted_payload)
         except SessionKeyError:
             raise
         except Exception as e:
-            raise SessionKeyError(f"Failed to extract session key: {e}") from e
+            msg = f"Failed to extract session key: {e}"
+            raise SessionKeyError(msg) from e
 
     @contextmanager
     def unlock_key(self, private_key: PgpyPrivateKey, passphrase: SecureBytes) -> Iterator[Any]:
@@ -176,117 +153,73 @@ class PgpyBackend:
             with private_key.pgpy_key.unlock(passphrase.decode()):
                 yield private_key
         except Exception as e:
-            raise KeyDecryptionError(f"Failed to unlock key: {e}") from e
+            msg = f"Failed to unlock key: {e}"
+            raise KeyDecryptionError(msg) from e
 
-    def _create_minimal_message(self, pkesk_bytes: bytes) -> bytes:
-        """
-        Create a minimal valid PGP message from a PKESK packet.
+    @staticmethod
+    def _normalize_decrypted_content(content: bytes | str) -> bytes:
+        if isinstance(content, bytes):
+            return content
+        return content.encode("utf-8")
 
-        Appends a minimal SEIPD packet so pgpy can parse the message.
-        """
-        # Create minimal SEIPD packet (tag 18)
-        # Version 1 + minimal encrypted data
-        dummy_encrypted = bytes([0x01]) + bytes(50)  # Version 1 + dummy data
+    @staticmethod
+    def _find_encryption_key(key: pgpy.PGPKey) -> pgpy.PGPKey:
+        for subkey in key.subkeys.values():
+            if subkey.is_public is False:
+                return subkey
+        return key
 
-        # Build SEIPD packet header (new format)
-        seipd_length = len(dummy_encrypted)
-        if seipd_length < 192:
-            seipd_header = bytes([0xD2, seipd_length])
-        else:
-            seipd_header = bytes(
-                [0xD2, ((seipd_length - 192) >> 8) + 192, (seipd_length - 192) & 0xFF]
-            )
-
-        return pkesk_bytes + seipd_header + dummy_encrypted
-
-    def _extract_from_decrypted(self, decrypted: Any) -> SessionKey:
-        """Extract session key from a pgpy decryption result."""
-        # pgpy doesn't directly expose this, so we need to parse the result
-        # This is a placeholder - actual implementation depends on pgpy internals
-        raise SessionKeyError("Direct extraction not supported, using manual parsing")
-
-    def _parse_pkesk_manual(
-        self,
-        packet_bytes: bytes,
-        private_key: PgpyPrivateKey,
-        passphrase: SecureBytes,
-    ) -> SessionKey:
-        """
-        Manually parse and decrypt a PKESK packet.
-
-        This is used when pgpy's built-in methods don't work for our use case.
-        """
-        # Import here to avoid circular dependency
-        from proton_drive.crypto.session_key import parse_pkesk_packet
-
-        pkesk = parse_pkesk_packet(packet_bytes)
-
-        # Decrypt the session key using the private key
-        with private_key.pgpy_key.unlock(passphrase.decode()):
-            # Use pgpy's RSA/curve decryption
-            # Get the key's private key material for decryption
-            key = private_key.pgpy_key
-
-            # Find the encryption subkey (or use primary if it can encrypt)
-            enc_key = None
-            for subkey in key.subkeys.values():
-                if subkey.is_public is False:
-                    enc_key = subkey
-                    break
-
-            if enc_key is None:
-                enc_key = key
-
-            # Decrypt using pgpy's internal methods
-            # This requires accessing private APIs which may break
-            try:
-                from pgpy.packet.fields import MPI
-
-                # Parse the encrypted MPI from the PKESK
-                encrypted_mpi = MPI(pkesk.encrypted_session_key)
-
-                # Use pgpy's decryption
-                decrypted_sk = enc_key._key.keymaterial.decrypt(encrypted_mpi)
-
-                # Parse the decrypted session key: [algo(1)] + [key(N)] + [checksum(2)]
-                return self._parse_session_key_payload(bytes(decrypted_sk))
-
-            except Exception as e:
-                raise SessionKeyError(
-                    f"Manual PKESK decryption failed: {e}. "
-                    "Consider implementing native OpenPGP parser."
-                ) from e
+    @staticmethod
+    def _decrypt_session_key_mpi(encryption_key: pgpy.PGPKey, pkesk: PKESKPacket) -> bytes:
+        try:
+            encrypted_mpi = MPI(pkesk.encrypted_session_key)
+            decrypted = encryption_key._key.keymaterial.decrypt(encrypted_mpi)
+            return bytes(decrypted)
+        except Exception as e:
+            msg = f"Manual PKESK decryption failed: {e}"
+            raise SessionKeyError(msg) from e
 
     def _parse_session_key_payload(self, payload: bytes) -> SessionKey:
-        """
-        Parse decrypted session key payload.
-
-        Format: [algo(1)] + [key(N)] + [checksum(2)]
-        """
-        if len(payload) < 3:
-            raise SessionKeyError(f"Session key payload too short: {len(payload)} bytes")
-
-        algorithm_id = payload[0]
-
-        try:
-            algorithm = SymmetricAlgorithm(algorithm_id)
-        except ValueError:
-            raise SessionKeyError(f"Unknown symmetric algorithm: {algorithm_id}") from None
-
-        key_size = algorithm.key_size
-        if key_size == 0:
-            # Try to infer from payload length
-            key_size = len(payload) - 3
-            if key_size not in (16, 24, 32):
-                raise SessionKeyError(f"Cannot determine key size for algorithm {algorithm_id}")
-
+        """Parse decrypted session key payload: [algo(1)] + [key(N)] + [checksum(2)]."""
+        self._validate_payload_length(payload)
+        algorithm = self._parse_algorithm(payload[0])
+        key_size = self._determine_key_size(algorithm, len(payload))
         key_data = payload[1 : 1 + key_size]
         checksum = payload[1 + key_size : 1 + key_size + 2]
+        self._verify_checksum(key_data, checksum)
+        return SessionKey(algorithm=algorithm, key_data=key_data)
 
-        # Verify checksum (sum of key bytes mod 65536)
+    @staticmethod
+    def _validate_payload_length(payload: bytes) -> None:
+        if len(payload) >= 3:
+            return
+        msg = f"Session key payload too short: {len(payload)} bytes"
+        raise SessionKeyError(msg)
+
+    @staticmethod
+    def _parse_algorithm(algorithm_id: int) -> SymmetricAlgorithm:
+        try:
+            return SymmetricAlgorithm(algorithm_id)
+        except ValueError:
+            msg = f"Unknown symmetric algorithm: {algorithm_id}"
+            raise SessionKeyError(msg) from None
+
+    @staticmethod
+    def _determine_key_size(algorithm: SymmetricAlgorithm, payload_length: int) -> int:
+        key_size = algorithm.key_size
+        if key_size > 0:
+            return key_size
+        inferred_size = payload_length - 3
+        if inferred_size not in _VALID_KEY_SIZES:
+            msg = f"Cannot determine key size for algorithm {algorithm.value}"
+            raise SessionKeyError(msg)
+        return inferred_size
+
+    @staticmethod
+    def _verify_checksum(key_data: bytes, checksum: bytes) -> None:
         computed = sum(key_data) % 65536
         expected = int.from_bytes(checksum, "big")
-        if computed != expected:
-            raise SessionKeyError("Session key checksum mismatch")
-
-        return SessionKey(algorithm=algorithm, key_data=key_data)
+        if computed == expected:
+            return
+        msg = "Session key checksum mismatch"
+        raise SessionKeyError(msg)

@@ -155,7 +155,8 @@ class SecureBytes:
         return NotImplemented
 
     def __hash__(self) -> int:
-        raise TypeError("SecureBytes is not hashable")
+        msg = "SecureBytes is not hashable"
+        raise TypeError(msg)
 
     def __iter__(self) -> Iterator[int]:
         self._check_cleared()
@@ -176,7 +177,8 @@ class SecureBytes:
 
     def _check_cleared(self) -> None:
         if self._cleared:
-            raise RuntimeError("SecureBytes has been cleared")
+            msg = "SecureBytes has been cleared"
+            raise RuntimeError(msg)
 
     @classmethod
     def from_string(cls, s: str, encoding: str = "utf-8", *, lock: bool = False) -> Self:

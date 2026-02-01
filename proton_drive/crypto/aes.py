@@ -36,21 +36,25 @@ def decrypt_seipd_packet(encrypted_data: bytes, session_key: SessionKey) -> byte
         IntegrityError: If MDC verification fails.
     """
     if len(encrypted_data) < 1:
-        raise BlockDecryptionError("SEIPD packet too short")
+        msg = "SEIPD packet too short"
+        raise BlockDecryptionError(msg)
 
     version = encrypted_data[0]
     if version != 1:
-        raise BlockDecryptionError(f"Unsupported SEIPD version: {version}")
+        msg = f"Unsupported SEIPD version: {version}"
+        raise BlockDecryptionError(msg)
 
     block_size = session_key.block_size
     if block_size == 0:
-        raise BlockDecryptionError(f"Unknown block size for {session_key.algorithm}")
+        msg = f"Unknown block size for {session_key.algorithm}"
+        raise BlockDecryptionError(msg)
 
     ciphertext = encrypted_data[1:]
     prefix_size = block_size + 2
     min_size = prefix_size + _MDC_PACKET_SIZE
     if len(ciphertext) < min_size:
-        raise BlockDecryptionError(f"Encrypted data too short: {len(ciphertext)} < {min_size}")
+        msg = f"Encrypted data too short: {len(ciphertext)} < {min_size}"
+        raise BlockDecryptionError(msg)
 
     plaintext = _decrypt_openpgp_cfb(ciphertext, session_key.key_data, block_size)
     _verify_mdc(plaintext)
@@ -72,7 +76,8 @@ def _decrypt_openpgp_cfb(ciphertext: bytes, key: bytes, block_size: int) -> byte
 
     # Verify prefix: last 2 bytes of random data should repeat
     if prefix_plaintext[block_size - 2 : block_size] != prefix_plaintext[block_size:]:
-        raise BlockDecryptionError("CFB prefix verification failed, possibly wrong key")
+        msg = "CFB prefix verification failed, possibly wrong key"
+        raise BlockDecryptionError(msg)
 
     # Resync IV for rest of data
     resync_iv = prefix_ciphertext[2:prefix_size]
@@ -85,19 +90,22 @@ def _decrypt_openpgp_cfb(ciphertext: bytes, key: bytes, block_size: int) -> byte
 
 def _verify_mdc(plaintext: bytes) -> None:
     if len(plaintext) < _MDC_PACKET_SIZE:
-        raise IntegrityError("Data too short for MDC")
+        msg = "Data too short for MDC"
+        raise IntegrityError(msg)
 
     mdc_packet = plaintext[-_MDC_PACKET_SIZE:]
 
     if mdc_packet[:2] != _MDC_HEADER:
-        raise IntegrityError(f"Invalid MDC header: {mdc_packet[:2].hex()}")
+        msg = f"Invalid MDC header: {mdc_packet[:2].hex()}"
+        raise IntegrityError(msg)
 
     stored_hash = mdc_packet[2:]
     data_to_hash = plaintext[:-_MDC_HASH_SIZE]
     computed_hash = hashlib.sha1(data_to_hash).digest()
 
     if computed_hash != stored_hash:
-        raise IntegrityError("MDC verification failed, data may be corrupted or tampered")
+        msg = "MDC verification failed, data may be corrupted or tampered"
+        raise IntegrityError(msg)
 
 
 def _parse_literal_data_packet(data: bytes) -> bytes:
@@ -144,16 +152,19 @@ def parse_seipd_from_block(block_data: bytes) -> bytes:
         BlockDecryptionError: If parsing fails.
     """
     if len(block_data) < 2:
-        raise BlockDecryptionError("Block data too short")
+        msg = "Block data too short"
+        raise BlockDecryptionError(msg)
 
     first_byte = block_data[0]
     packet_tag, is_new_format = _parse_packet_tag(first_byte)
 
     if packet_tag is None:
-        raise BlockDecryptionError(f"Invalid packet header: 0x{first_byte:02x}")
+        msg = f"Invalid packet header: 0x{first_byte:02x}"
+        raise BlockDecryptionError(msg)
 
     if packet_tag != _TAG_SEIPD:
-        raise BlockDecryptionError(f"Expected SEIPD packet (tag 18), got tag {packet_tag}")
+        msg = f"Expected SEIPD packet (tag 18), got tag {packet_tag}"
+        raise BlockDecryptionError(msg)
 
     offset = 1 + _get_length_field_size(block_data, 1, is_new_format, first_byte)
     return block_data[offset:]

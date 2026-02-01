@@ -118,7 +118,7 @@ class KeyBundle:
     A PGP key with its associated passphrase.
 
     Used for the key hierarchy where each level's key unlocks the next.
-    This is an internal model - the actual key objects are managed by the backend.
+    This is an internal model. The actual key objects are managed by the backend.
     """
 
     key_id: str

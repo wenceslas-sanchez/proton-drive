@@ -26,10 +26,10 @@ class KeyManager:
     Manages the Proton Drive key hierarchy.
 
     The key hierarchy is:
-    1. User Key - protected by bcrypt-derived passphrase
-    2. Address Key - protected by User Key (via Token field)
-    3. Share Key - passphrase encrypted to Address Key
-    4. Node Keys - passphrase encrypted to parent's Node Key (or Share Key for root)
+    1. User Key: protected by bcrypt-derived passphrase
+    2. Address Key: protected by User Key (via Token field)
+    3. Share Key: passphrase encrypted to Address Key
+    4. Node Keys: passphrase encrypted to parent's Node Key (or Share Key for root)
     """
 
     def __init__(self, pgp_backend: PGPBackend | None = None) -> None:

@@ -103,17 +103,6 @@ class RateLimitError(APIError):
         self.retry_after = retry_after
 
 
-class ServerError(APIError):
-    """Server-side error (5xx)."""
-
-    def __init__(self, message: str, *, code: int = 500) -> None:
-        super().__init__(message, code=code)
-
-
-class NetworkError(ProtonDriveError):
-    """Network-level error (connection failed, timeout)."""
-
-
 class PathError(ProtonDriveError):
     """Path-related error."""
 

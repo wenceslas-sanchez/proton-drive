@@ -10,6 +10,7 @@ class ProtonDriveConfig:
     """
     Attributes:
         api_url: Base URL for Proton API.
+        redirect_uri: Redirect URI for OAuth token refresh.
         timeout: Request timeout in seconds.
         app_version: Application version string sent to API.
         user_agent: User-Agent header value.
@@ -22,6 +23,7 @@ class ProtonDriveConfig:
     """
 
     api_url: str = "https://mail-api.proton.me"
+    redirect_uri: str = "https://protonmail.ch"
     timeout: float = 30.0
     app_version: str = "macos-drive@1.0.0-alpha.1+rclone"
     user_agent: str = "ProtonDrive-Python/1.0"

@@ -1,0 +1,11 @@
+{
+  "request": {
+    "method": "GET",
+    "url": "https://mail-api.proton.me/drive/volumes",
+    "content": null
+  },
+  "response": {
+    "status_code": 200,
+    "content": "{\"Volumes\": [{\"ID\": \"_Pry2fPM_wruepKVsjyS3LtcxeU0IaBwtJko8wuhl9_O9QE61pR7_Da86khiRrbaf1NaI_88TBKQex2BGkLiKg==\", \"CreationTime\": 1769987193, \"MaxSpace\": null, \"VolumeID\": \"_Pry2fPM_wruepKVsjyS3LtcxeU0IaBwtJko8wuhl9_O9QE61pR7_Da86khiRrbaf1NaI_88TBKQex2BGkLiKg==\", \"CreateTime\": 1769987193, \"ModifyTime\": 1769987193, \"UsedSpace\": 0, \"DownloadedBytes\": 667, \"UploadedBytes\": 561035, \"State\": 1, \"Share\": {\"ShareID\": \"o1_q8wRKp7LAxZ9Jjckj1kAElQA6U3HiZSVWcJ9OSu5DZ-bCjjuJV5arDyxdAIxk4tCud5LDYH9iGXJJszSjRA==\", \"ID\": \"o1_q8wRKp7LAxZ9Jjckj1kAElQA6U3HiZSVWcJ9OSu5DZ-bCjjuJV5arDyxdAIxk4tCud5LDYH9iGXJJszSjRA==\", \"LinkID\": \"lAZ_adCHyKD6t4a4JBVQKLlutavAf7ZCqhT0oIxKxco2E-YtoHxYlHdhO4nuhToFlM8Mb5IGEONyNT-_QDUZoA==\"}, \"Type\": 1}], \"Code\": 1000}"
+  }
+}

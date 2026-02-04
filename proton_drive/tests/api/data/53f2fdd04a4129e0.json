@@ -1,0 +1,11 @@
+{
+  "request": {
+    "method": "GET",
+    "url": "https://mail-api.proton.me/drive/shares/o1_q8wRKp7LAxZ9Jjckj1kAElQA6U3HiZSVWcJ9OSu5DZ-bCjjuJV5arDyxdAIxk4tCud5LDYH9iGXJJszSjRA==/files/KFrb_YUHHpvz9UmOqUTRGMo9mvRxNE2YtSZPZ9Eu0ZnKb0ogxKS1_ezc6qt9fYm1-NYEUDHVi_mdlTl9neqAKA==/revisions/y733BpCUYfI2pY3bdMEVEDvH7sDho4kWCEAoD-DBlR9ZtGAxdVPrlMFnWhufEwvNzfY2jAuNPw594zythhwckA==",
+    "content": null
+  },
+  "response": {
+    "status_code": 200,
+    "content": "{\"Code\": 1000, \"Revision\": {\"Blocks\": [{\"Index\": 1, \"Hash\": \"0000000000000000000000000000000000000000000000000000000000000000\", \"Token\": \"eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJpYXQiOjE3Njk5ODgzMjcuNjU3NjM5LCJleHAiOjE3Njk5OTAxMjcsIkJsb2IiOiItQUJqSzZXSkFENTJtRDFLa1NzV2tBIiwiVm9sIjoiMkI4TFZPakpuY3V5ZnNZUEVfZVM0QSIsIlVzZXIiOiJFOHR3VHJuay00bmZiVi1Dam1QdG9BIiwiaXNzIjoicHJvdG9uLm1lIiwiYXVkIjoicHJvdG9uLm1lIiwiVHlwZSI6MTJ9.MrH8zQ5j9uk5_is6bQtk2zq3TKa3VIYp6a5-TmbbNr0\", \"URL\": \"https://sanitized-storage.example.com/blocks/FAKE_JWT_TOKEN\", \"BareURL\": \"https://sanitized-storage.example.com/blocks/FAKE_JWT_TOKEN\", \"EncSignature\": \"FAKE_SIGNATURE_BASE64==\", \"SignatureEmail\": \"sanitized@example.com\"}], \"Photo\": null, \"ID\": \"y733BpCUYfI2pY3bdMEVEDvH7sDho4kWCEAoD-DBlR9ZtGAxdVPrlMFnWhufEwvNzfY2jAuNPw594zythhwckA==\", \"ManifestSignature\": \"-----BEGIN PGP SIGNATURE-----\\nVersion: Sanitized\\n\\nFAKE_SIGNATURE_FOR_TESTING_ONLY\\n-----END PGP SIGNATURE-----\\n\", \"Size\": 219, \"State\": 1, \"XAttr\": \"-----BEGIN PGP MESSAGE-----\\nVersion: Sanitized\\n\\nFAKE_PGP_MESSAGE_FOR_TESTING_ONLY\\n-----END PGP MESSAGE-----\\n\", \"Thumbnail\": 0, \"ThumbnailHash\": null, \"ThumbnailSize\": 0, \"Thumbnails\": [], \"ClientUID\": null, \"CreateTime\": 1769987380, \"SignatureEmail\": \"sanitized@example.com\", \"SignatureAddress\": \"sanitized@example.com\"}}"
+  }
+}

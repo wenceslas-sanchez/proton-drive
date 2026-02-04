@@ -1,0 +1,11 @@
+{
+  "request": {
+    "method": "GET",
+    "url": "https://mail-api.proton.me/drive/shares/o1_q8wRKp7LAxZ9Jjckj1kAElQA6U3HiZSVWcJ9OSu5DZ-bCjjuJV5arDyxdAIxk4tCud5LDYH9iGXJJszSjRA==/links/m6snL5w3dD_STKPfmBBDC1LhEjLYLcLYjkYV_0aCqimYIkMPBOc8nG0GMKLHb0PBSavGiuYYLIyFY31v96q44A==",
+    "content": null
+  },
+  "response": {
+    "status_code": 200,
+    "content": "{\"Code\": 1000, \"Link\": {\"LinkID\": \"m6snL5w3dD_STKPfmBBDC1LhEjLYLcLYjkYV_0aCqimYIkMPBOc8nG0GMKLHb0PBSavGiuYYLIyFY31v96q44A==\", \"ParentLinkID\": \"lAZ_adCHyKD6t4a4JBVQKLlutavAf7ZCqhT0oIxKxco2E-YtoHxYlHdhO4nuhToFlM8Mb5IGEONyNT-_QDUZoA==\", \"VolumeID\": \"_Pry2fPM_wruepKVsjyS3LtcxeU0IaBwtJko8wuhl9_O9QE61pR7_Da86khiRrbaf1NaI_88TBKQex2BGkLiKg==\", \"Type\": 1, \"Name\": \"Sanitized User\", \"Hash\": \"0000000000000000000000000000000000000000000000000000000000000000\", \"State\": 1, \"Size\": 0, \"TotalSize\": 0, \"MIMEType\": \"Folder\", \"Attributes\": 1, \"NodeKey\": \"-----BEGIN PGP PRIVATE KEY BLOCK-----\\nVersion: Sanitized\\n\\nFAKE_PRIVATE_KEY_BLOCK_FOR_TESTING_ONLY\\n-----END PGP PRIVATE KEY BLOCK-----\\n\", \"NodePassphrase\": \"-----BEGIN PGP MESSAGE-----\\nVersion: Sanitized\\n\\nFAKE_PGP_MESSAGE_FOR_TESTING_ONLY\\n-----END PGP MESSAGE-----\\n\", \"SignatureEmail\": \"sanitized@example.com\", \"SignatureAddress\": \"sanitized@example.com\", \"NameSignatureEmail\": \"sanitized@example.com\", \"NodePassphraseSignature\": \"-----BEGIN PGP SIGNATURE-----\\nVersion: Sanitized\\n\\nFAKE_SIGNATURE_FOR_TESTING_ONLY\\n-----END PGP SIGNATURE-----\\n\", \"CreateTime\": 1769987377, \"ModifyTime\": 1769987377, \"Trashed\": null, \"ExpirationTime\": null, \"Permissions\": 7, \"Shared\": 0, \"SharingDetails\": null, \"ShareUrls\": [], \"ShareIDs\": [], \"NbUrls\": 0, \"ActiveUrls\": 0, \"UrlsExpired\": 0, \"FileProperties\": null, \"FolderProperties\": {\"NodeHashKey\": \"FAKE_SIGNATURE_BASE64==\"}, \"AlbumProperties\": null, \"DocumentProperties\": null, \"PhotoProperties\": null, \"XAttr\": null}}"
+  }
+}

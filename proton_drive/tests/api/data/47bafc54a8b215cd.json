@@ -1,0 +1,11 @@
+{
+  "request": {
+    "method": "GET",
+    "url": "https://mail-api.proton.me/drive/shares/o1_q8wRKp7LAxZ9Jjckj1kAElQA6U3HiZSVWcJ9OSu5DZ-bCjjuJV5arDyxdAIxk4tCud5LDYH9iGXJJszSjRA==/files/DDE6dFFWWO7a5SYJgSLtb714r776PYY2rQgL25lR79YcPL21npLHp0NlEWAimZkap6Wof1yhv7fv8b030XWdWw==/revisions/I25POnD5ewY99SK5LjmXJWtMFhNKJINdwXElKTxmfb7msI1CzjCGGqlugEGK-y3g2blFqxsIB0xDlZbOYycP-Q==",
+    "content": null
+  },
+  "response": {
+    "status_code": 200,
+    "content": "{\"Code\": 1000, \"Revision\": {\"Blocks\": [], \"Photo\": null, \"ID\": \"I25POnD5ewY99SK5LjmXJWtMFhNKJINdwXElKTxmfb7msI1CzjCGGqlugEGK-y3g2blFqxsIB0xDlZbOYycP-Q==\", \"ManifestSignature\": \"-----BEGIN PGP SIGNATURE-----\\nVersion: Sanitized\\n\\nFAKE_SIGNATURE_FOR_TESTING_ONLY\\n-----END PGP SIGNATURE-----\\n\", \"Size\": 0, \"State\": 1, \"XAttr\": \"-----BEGIN PGP MESSAGE-----\\nVersion: Sanitized\\n\\nFAKE_PGP_MESSAGE_FOR_TESTING_ONLY\\n-----END PGP MESSAGE-----\\n\", \"Thumbnail\": 0, \"ThumbnailHash\": null, \"ThumbnailSize\": 0, \"Thumbnails\": [], \"ClientUID\": null, \"CreateTime\": 1769987402, \"SignatureEmail\": \"sanitized@example.com\", \"SignatureAddress\": \"sanitized@example.com\"}}"
+  }
+}

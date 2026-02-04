@@ -1,5 +1,3 @@
-"""Tests for AsyncHttpClient."""
-
 import json
 from typing import Any
 
@@ -17,8 +15,6 @@ from proton_drive.exceptions import (
 
 
 class MockTransport(httpx.AsyncBaseTransport):
-    """Mock transport for testing."""
-
     def __init__(self, responses: list[dict[str, Any]] | None = None) -> None:
         self._responses = responses or []
         self._call_index = 0
@@ -30,7 +26,6 @@ class MockTransport(httpx.AsyncBaseTransport):
         json_data: dict[str, Any] | None = None,
         content: bytes | None = None,
     ) -> None:
-        """Add a response to the queue."""
         self._responses.append(
             {
                 "status_code": status_code,
@@ -40,7 +35,6 @@ class MockTransport(httpx.AsyncBaseTransport):
         )
 
     async def handle_async_request(self, request: httpx.Request) -> httpx.Response:
-        """Return next queued response."""
         self.requests.append(request)
         if self._call_index >= len(self._responses):
             return httpx.Response(
@@ -63,27 +57,20 @@ class MockTransport(httpx.AsyncBaseTransport):
 
 @pytest.fixture
 def config() -> ProtonDriveConfig:
-    """Create test config."""
     return ProtonDriveConfig()
 
 
 @pytest.fixture
 def mock_transport() -> MockTransport:
-    """Create mock transport."""
     return MockTransport()
 
 
-# Session management tests
-
-
 def test_is_authenticated_returns_false_initially(config: ProtonDriveConfig) -> None:
-    """Test that client is not authenticated by default."""
     client = AsyncHttpClient(config)
     assert client.is_authenticated is False
 
 
 def test_set_session_sets_tokens(config: ProtonDriveConfig) -> None:
-    """Test that set_session stores tokens."""
     client = AsyncHttpClient(config)
     client.set_session(
         uid="test-uid",
@@ -98,7 +85,6 @@ def test_set_session_sets_tokens(config: ProtonDriveConfig) -> None:
 
 
 def test_clear_session_removes_tokens(config: ProtonDriveConfig) -> None:
-    """Test that clear_session removes all tokens."""
     client = AsyncHttpClient(config)
     client.set_session(
         uid="test-uid",
@@ -113,15 +99,11 @@ def test_clear_session_removes_tokens(config: ProtonDriveConfig) -> None:
     assert client._refresh_token is None
 
 
-# Request headers tests
-
-
 @pytest.mark.asyncio
 async def test_request_includes_auth_headers_when_authenticated(
     config: ProtonDriveConfig,
     mock_transport: MockTransport,
 ) -> None:
-    """Test that authenticated requests include auth headers."""
     mock_transport.add_response(json_data={"Code": ProtonAPICode.SUCCESS})
 
     async with AsyncHttpClient(config, transport=mock_transport) as client:
@@ -142,7 +124,6 @@ async def test_request_excludes_auth_headers_when_not_authenticated(
     config: ProtonDriveConfig,
     mock_transport: MockTransport,
 ) -> None:
-    """Test that unauthenticated requests don't include auth headers."""
     mock_transport.add_response(json_data={"Code": ProtonAPICode.SUCCESS})
 
     async with AsyncHttpClient(config, transport=mock_transport) as client:
@@ -158,7 +139,6 @@ async def test_request_includes_default_headers(
     config: ProtonDriveConfig,
     mock_transport: MockTransport,
 ) -> None:
-    """Test that requests include default Proton headers."""
     mock_transport.add_response(json_data={"Code": ProtonAPICode.SUCCESS})
 
     async with AsyncHttpClient(config, transport=mock_transport) as client:
@@ -170,15 +150,11 @@ async def test_request_includes_default_headers(
     assert "user-agent" in request.headers
 
 
-# Request/response handling tests
-
-
 @pytest.mark.asyncio
 async def test_request_returns_json_data(
     config: ProtonDriveConfig,
     mock_transport: MockTransport,
 ) -> None:
-    """Test that successful request returns JSON data."""
     mock_transport.add_response(json_data={"Code": ProtonAPICode.SUCCESS, "Data": "test"})
 
     async with AsyncHttpClient(config, transport=mock_transport) as client:
@@ -192,7 +168,6 @@ async def test_request_sends_json_body(
     config: ProtonDriveConfig,
     mock_transport: MockTransport,
 ) -> None:
-    """Test that request sends JSON body correctly."""
     mock_transport.add_response(json_data={"Code": ProtonAPICode.SUCCESS})
 
     async with AsyncHttpClient(config, transport=mock_transport) as client:
@@ -212,7 +187,6 @@ async def test_request_sends_query_params(
     config: ProtonDriveConfig,
     mock_transport: MockTransport,
 ) -> None:
-    """Test that request sends query params correctly."""
     mock_transport.add_response(json_data={"Code": ProtonAPICode.SUCCESS})
 
     async with AsyncHttpClient(config, transport=mock_transport) as client:
@@ -228,15 +202,11 @@ async def test_request_sends_query_params(
     assert "limit=10" in str(request.url)
 
 
-# Error handling tests
-
-
 @pytest.mark.asyncio
 async def test_request_raises_api_error_on_failure(
     config: ProtonDriveConfig,
     mock_transport: MockTransport,
 ) -> None:
-    """Test that failed API response raises APIError."""
     mock_transport.add_response(json_data={"Code": 9999, "Error": "Test error"})
 
     async with AsyncHttpClient(config, transport=mock_transport) as client:
@@ -252,7 +222,6 @@ async def test_request_raises_not_found_error_on_2501(
     config: ProtonDriveConfig,
     mock_transport: MockTransport,
 ) -> None:
-    """Test that code 2501 raises NotFoundError."""
     mock_transport.add_response(json_data={"Code": 2501, "Error": "Not found"})
 
     async with AsyncHttpClient(config, transport=mock_transport) as client:
@@ -265,7 +234,6 @@ async def test_request_raises_rate_limit_error_on_85131(
     config: ProtonDriveConfig,
     mock_transport: MockTransport,
 ) -> None:
-    """Test that code 85131 raises RateLimitError."""
     mock_transport.add_response(
         json_data={
             "Code": 85131,
@@ -286,7 +254,6 @@ async def test_request_raises_api_error_on_invalid_json(
     config: ProtonDriveConfig,
     mock_transport: MockTransport,
 ) -> None:
-    """Test that invalid JSON response raises APIError."""
     mock_transport.add_response(status_code=httpx.codes.OK, content=b"not json")
 
     async with AsyncHttpClient(config, transport=mock_transport) as client:
@@ -296,18 +263,12 @@ async def test_request_raises_api_error_on_invalid_json(
     assert "Invalid JSON" in str(exc_info.value)
 
 
-# Token refresh tests
-
-
 @pytest.mark.asyncio
 async def test_request_refreshes_token_on_401(
     config: ProtonDriveConfig,
     mock_transport: MockTransport,
 ) -> None:
-    """Test that 401 triggers token refresh and retry."""
-    # First request returns 401
     mock_transport.add_response(json_data={"Code": ProtonAPICode.INVALID_TOKEN})
-    # Refresh request succeeds
     mock_transport.add_response(
         json_data={
             "Code": ProtonAPICode.SUCCESS,
@@ -315,7 +276,6 @@ async def test_request_refreshes_token_on_401(
             "RefreshToken": "new-refresh",
         }
     )
-    # Retry request succeeds
     mock_transport.add_response(json_data={"Code": ProtonAPICode.SUCCESS, "Data": "success"})
 
     async with AsyncHttpClient(config, transport=mock_transport) as client:
@@ -336,10 +296,7 @@ async def test_request_raises_session_expired_on_refresh_failure(
     config: ProtonDriveConfig,
     mock_transport: MockTransport,
 ) -> None:
-    """Test that failed refresh raises SessionExpiredError."""
-    # First request returns 401
     mock_transport.add_response(json_data={"Code": ProtonAPICode.INVALID_TOKEN})
-    # Refresh request fails
     mock_transport.add_response(json_data={"Code": 9999, "Error": "Refresh failed"})
 
     async with AsyncHttpClient(config, transport=mock_transport) as client:
@@ -357,7 +314,6 @@ async def test_request_does_not_refresh_when_disabled(
     config: ProtonDriveConfig,
     mock_transport: MockTransport,
 ) -> None:
-    """Test that auto_refresh=False prevents token refresh."""
     mock_transport.add_response(json_data={"Code": ProtonAPICode.INVALID_TOKEN})
 
     async with AsyncHttpClient(config, transport=mock_transport) as client:
@@ -366,15 +322,10 @@ async def test_request_does_not_refresh_when_disabled(
             access_token="token",
             refresh_token="refresh",
         )
-        # With auto_refresh=False, should not retry
         with pytest.raises(APIError):
             await client.request("GET", "/test", auto_refresh=False)
 
-    # Only one request should have been made
     assert len(mock_transport.requests) == 1
-
-
-# Raw request tests
 
 
 @pytest.mark.asyncio
@@ -382,7 +333,6 @@ async def test_request_raw_returns_bytes(
     config: ProtonDriveConfig,
     mock_transport: MockTransport,
 ) -> None:
-    """Test that request_raw returns raw bytes."""
     mock_transport.add_response(status_code=httpx.codes.OK, content=b"raw content")
 
     async with AsyncHttpClient(config, transport=mock_transport) as client:
@@ -393,8 +343,6 @@ async def test_request_raw_returns_bytes(
 
 @pytest.mark.asyncio
 async def test_stream_raw_yields_chunks(config: ProtonDriveConfig) -> None:
-    """Test that stream_raw yields content chunks."""
-
     class StreamingTransport(httpx.AsyncBaseTransport):
         async def handle_async_request(self, request: httpx.Request) -> httpx.Response:
             return httpx.Response(httpx.codes.OK, content=b"chunk1chunk2chunk3")
@@ -407,15 +355,11 @@ async def test_stream_raw_yields_chunks(config: ProtonDriveConfig) -> None:
     assert b"".join(chunks) == b"chunk1chunk2chunk3"
 
 
-# Context manager tests
-
-
 @pytest.mark.asyncio
 async def test_client_closes_on_exit(
     config: ProtonDriveConfig,
     mock_transport: MockTransport,
 ) -> None:
-    """Test that client closes properly on context exit."""
     async with AsyncHttpClient(config, transport=mock_transport) as client:
         assert client._client is not None
 
@@ -427,10 +371,9 @@ async def test_close_is_idempotent(
     config: ProtonDriveConfig,
     mock_transport: MockTransport,
 ) -> None:
-    """Test that close can be called multiple times."""
     client = AsyncHttpClient(config, transport=mock_transport)
     await client._ensure_client()
     await client.close()
-    await client.close()  # Should not raise
+    await client.close()
 
     assert client._client is None

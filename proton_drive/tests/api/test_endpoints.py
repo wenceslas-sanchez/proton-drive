@@ -521,11 +521,11 @@ async def replay_api() -> AsyncIterator[ProtonAPIEndpoints]:
     transport = ReplayTransport(FIXTURES_DIR)
     client = AsyncHttpClient(config, transport=transport)
     await client._ensure_client()
-    client.set_session(uid="fake", access_token="fake", refresh_token="fake")
+    await client.set_session(uid="fake", access_token="fake", refresh_token="fake")
 
     yield ProtonAPIEndpoints(client)
 
-    await client.close()
+    await client._close()
 
 
 @pytest.mark.asyncio

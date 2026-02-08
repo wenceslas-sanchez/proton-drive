@@ -70,33 +70,33 @@ def test_is_authenticated_returns_false_initially(config: ProtonDriveConfig) -> 
     assert client.is_authenticated is False
 
 
-def test_set_session_sets_tokens(config: ProtonDriveConfig) -> None:
+@pytest.mark.asyncio
+async def test_set_session_sets_tokens(config: ProtonDriveConfig) -> None:
     client = AsyncHttpClient(config)
-    client.set_session(
+    await client.set_session(
         uid="test-uid",
         access_token="test-access",
         refresh_token="test-refresh",
     )
 
     assert client.is_authenticated is True
-    assert client._uid == "test-uid"
-    assert client._access_token == "test-access"
-    assert client._refresh_token == "test-refresh"
+    assert client._session.uid == "test-uid"
+    assert client._session.access_token == "test-access"
+    assert client._session.refresh_token == "test-refresh"
 
 
-def test_clear_session_removes_tokens(config: ProtonDriveConfig) -> None:
+@pytest.mark.asyncio
+async def test_clear_session_removes_tokens(config: ProtonDriveConfig) -> None:
     client = AsyncHttpClient(config)
-    client.set_session(
+    await client.set_session(
         uid="test-uid",
         access_token="test-access",
         refresh_token="test-refresh",
     )
-    client.clear_session()
+    await client.clear_session()
 
     assert client.is_authenticated is False
-    assert client._uid is None
-    assert client._access_token is None
-    assert client._refresh_token is None
+    assert client._session is None
 
 
 @pytest.mark.asyncio
@@ -107,7 +107,7 @@ async def test_request_includes_auth_headers_when_authenticated(
     mock_transport.add_response(json_data={"Code": ProtonAPICode.SUCCESS})
 
     async with AsyncHttpClient(config, transport=mock_transport) as client:
-        client.set_session(
+        await client.set_session(
             uid="test-uid",
             access_token="test-token",
             refresh_token="refresh",
@@ -279,7 +279,7 @@ async def test_request_refreshes_token_on_401(
     mock_transport.add_response(json_data={"Code": ProtonAPICode.SUCCESS, "Data": "success"})
 
     async with AsyncHttpClient(config, transport=mock_transport) as client:
-        client.set_session(
+        await client.set_session(
             uid="test-uid",
             access_token="old-token",
             refresh_token="old-refresh",
@@ -287,8 +287,8 @@ async def test_request_refreshes_token_on_401(
         result = await client.request("GET", "/test")
 
     assert result["Data"] == "success"
-    assert client._access_token == "new-token"
-    assert client._refresh_token == "new-refresh"
+    assert client._session.access_token == "new-token"
+    assert client._session.refresh_token == "new-refresh"
 
 
 @pytest.mark.asyncio
@@ -300,7 +300,7 @@ async def test_request_raises_session_expired_on_refresh_failure(
     mock_transport.add_response(json_data={"Code": 9999, "Error": "Refresh failed"})
 
     async with AsyncHttpClient(config, transport=mock_transport) as client:
-        client.set_session(
+        await client.set_session(
             uid="test-uid",
             access_token="old-token",
             refresh_token="old-refresh",
@@ -317,7 +317,7 @@ async def test_request_does_not_refresh_when_disabled(
     mock_transport.add_response(json_data={"Code": ProtonAPICode.INVALID_TOKEN})
 
     async with AsyncHttpClient(config, transport=mock_transport) as client:
-        client.set_session(
+        await client.set_session(
             uid="test-uid",
             access_token="token",
             refresh_token="refresh",
@@ -373,7 +373,7 @@ async def test_close_is_idempotent(
 ) -> None:
     client = AsyncHttpClient(config, transport=mock_transport)
     await client._ensure_client()
-    await client.close()
-    await client.close()
+    await client._close()
+    await client._close()
 
     assert client._client is None

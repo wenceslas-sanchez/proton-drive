@@ -14,13 +14,13 @@ import httpx
 import structlog
 
 from proton_drive.config import ProtonDriveConfig
+from proton_drive.core.wait_group import WaitGroup
 from proton_drive.exceptions import (
     APIError,
     NotFoundError,
     RateLimitError,
     SessionExpiredError,
 )
-from proton_drive.utils import WaitGroup
 
 logger = structlog.get_logger(__name__)
 

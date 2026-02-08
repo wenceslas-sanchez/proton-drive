@@ -235,6 +235,9 @@ class AsyncHttpClient:
         if self._client is None:
             msg = "HTTP client not initialized. Use 'async with' first."
             raise RuntimeError(msg)
+
+        _log_debug_api_request(method, endpoint, json)
+
         response = await self._client.request(
             method=method,
             url=endpoint,
@@ -251,6 +254,8 @@ class AsyncHttpClient:
                 code=response.status_code,
                 endpoint=endpoint,
             ) from e
+
+        _log_debug_api_request(method, endpoint, data)
 
         code = data.get("Code", 0)
 
@@ -298,6 +303,9 @@ class AsyncHttpClient:
         Raises:
             httpx.HTTPError: If the request fails.
         """
+        if self._client is None:
+            msg = "HTTP client not initialized. Use 'async with' first."
+            raise RuntimeError(msg)
         response = await self._client.request(
             method=method,
             url=url,
@@ -335,6 +343,10 @@ class AsyncHttpClient:
         Raises:
             httpx.HTTPError: If the request fails.
         """
+        if self._client is None:
+            msg = "HTTP client not initialized. Use 'async with' first."
+            raise RuntimeError(msg)
+        logger.debug("Stream raw request", method=method, url=url)
         async with self._client.stream(
             method=method,
             url=url,
@@ -391,3 +403,8 @@ class AsyncHttpClient:
 
         msg = f"{error_msg} (code={code})"
         raise APIError(msg, code=code, endpoint=endpoint)
+
+
+def _log_debug_api_request(method: str, endpoint: str, json: dict[str, Any] | None = None) -> None:
+    body = sanitize_for_log(json) if json is not None else {}
+    logger.debug("API request", method=method, endpoint=endpoint, body=body)

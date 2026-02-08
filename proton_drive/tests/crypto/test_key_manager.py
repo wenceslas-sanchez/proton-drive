@@ -46,7 +46,7 @@ def test_unlock_user_key_returns_passphrase() -> None:
     user_key = _create_user_key()
     key_salt = _create_key_salt()
 
-    result = manager.unlock_user_key(user_key, "password123", key_salt)
+    result = manager.unlock_user_key(user_key, SecureBytes.from_string("password123"), key_salt)
 
     assert result.decode() == "AbdTFsE7Z2WQjHtnC6/AIn.FdpyDXHS"
 
@@ -59,7 +59,7 @@ def test_unlock_user_key_raises_key_unlock_error_on_failure() -> None:
     key_salt = _create_key_salt()
 
     with pytest.raises(KeyUnlockError, match="Failed to unlock user key"):
-        manager.unlock_user_key(user_key, "password123", key_salt)
+        manager.unlock_user_key(user_key, SecureBytes.from_string("password123"), key_salt)
 
 
 def test_unlock_user_key_reraises_key_decryption_error() -> None:
@@ -70,7 +70,7 @@ def test_unlock_user_key_reraises_key_decryption_error() -> None:
     key_salt = _create_key_salt()
 
     with pytest.raises(KeyDecryptionError):
-        manager.unlock_user_key(user_key, "password123", key_salt)
+        manager.unlock_user_key(user_key, SecureBytes.from_string("password123"), key_salt)
 
 
 def test_unlock_address_key_with_token_decrypts_passphrase() -> None:
@@ -78,7 +78,7 @@ def test_unlock_address_key_with_token_decrypts_passphrase() -> None:
     manager = KeyManager(pgp_backend=backend)
     user_key = _create_user_key()
     key_salt = _create_key_salt()
-    manager.unlock_user_key(user_key, "password", key_salt)
+    manager.unlock_user_key(user_key, SecureBytes.from_string("password"), key_salt)
     address_key = _create_address_key(token="encrypted_token")
 
     manager.unlock_address_key(address_key, user_key.key_id)
@@ -91,7 +91,9 @@ def test_unlock_address_key_without_token_uses_user_passphrase() -> None:
     manager = KeyManager(pgp_backend=backend)
     user_key = _create_user_key()
     key_salt = _create_key_salt()
-    user_passphrase = manager.unlock_user_key(user_key, "password", key_salt)
+    user_passphrase = manager.unlock_user_key(
+        user_key, SecureBytes.from_string("password"), key_salt
+    )
     address_key = _create_address_key(token=None)
     backend.decrypt_message.reset_mock()
 
@@ -106,7 +108,7 @@ def test_unlock_address_key_returns_cached_if_already_unlocked() -> None:
     manager = KeyManager(pgp_backend=backend)
     user_key = _create_user_key()
     key_salt = _create_key_salt()
-    manager.unlock_user_key(user_key, "password", key_salt)
+    manager.unlock_user_key(user_key, SecureBytes.from_string("password"), key_salt)
     address_key = _create_address_key()
     first_result = manager.unlock_address_key(address_key, user_key.key_id)
     backend.load_private_key.reset_mock()
@@ -131,7 +133,7 @@ def test_unlock_address_key_raises_on_decryption_failure() -> None:
     manager = KeyManager(pgp_backend=backend)
     user_key = _create_user_key()
     key_salt = _create_key_salt()
-    manager.unlock_user_key(user_key, "password", key_salt)
+    manager.unlock_user_key(user_key, SecureBytes.from_string("password"), key_salt)
     backend.decrypt_message.side_effect = ValueError("decrypt failed")
     address_key = _create_address_key()
 
@@ -144,7 +146,7 @@ def test_unlock_share_key_returns_key_and_passphrase() -> None:
     manager = KeyManager(pgp_backend=backend)
     user_key = _create_user_key()
     key_salt = _create_key_salt()
-    manager.unlock_user_key(user_key, "password", key_salt)
+    manager.unlock_user_key(user_key, SecureBytes.from_string("password"), key_salt)
     address_key = _create_address_key()
     manager.unlock_address_key(address_key, user_key.key_id)
 
@@ -175,7 +177,7 @@ def test_unlock_share_key_raises_on_decryption_failure() -> None:
     manager = KeyManager(pgp_backend=backend)
     user_key = _create_user_key()
     key_salt = _create_key_salt()
-    manager.unlock_user_key(user_key, "password", key_salt)
+    manager.unlock_user_key(user_key, SecureBytes.from_string("password"), key_salt)
     address_key = _create_address_key()
     manager.unlock_address_key(address_key, user_key.key_id)
     backend.decrypt_message.side_effect = ValueError("decrypt failed")
@@ -292,7 +294,7 @@ def test_get_loaded_key_returns_key_if_exists() -> None:
     manager = KeyManager(pgp_backend=backend)
     user_key = _create_user_key()
     key_salt = _create_key_salt()
-    manager.unlock_user_key(user_key, "password", key_salt)
+    manager.unlock_user_key(user_key, SecureBytes.from_string("password"), key_salt)
 
     result = manager.get_loaded_key(user_key.key_id)
 
@@ -313,7 +315,7 @@ def test_get_passphrase_returns_passphrase_if_exists() -> None:
     manager = KeyManager(pgp_backend=backend)
     user_key = _create_user_key()
     key_salt = _create_key_salt()
-    manager.unlock_user_key(user_key, "password", key_salt)
+    manager.unlock_user_key(user_key, SecureBytes.from_string("password"), key_salt)
 
     result = manager.get_passphrase(user_key.key_id)
 
@@ -334,7 +336,7 @@ def test_clear_removes_all_keys_and_passphrases() -> None:
     manager = KeyManager(pgp_backend=backend)
     user_key = _create_user_key()
     key_salt = _create_key_salt()
-    manager.unlock_user_key(user_key, "password", key_salt)
+    manager.unlock_user_key(user_key, SecureBytes.from_string("password"), key_salt)
 
     manager.clear()
 
@@ -345,7 +347,7 @@ def test_clear_removes_all_keys_and_passphrases() -> None:
 def test_derive_key_passphrase_returns_secure_bytes() -> None:
     key_salt = _create_key_salt()
 
-    result = KeyManager._derive_key_passphrase("password123", key_salt)
+    result = KeyManager._derive_key_passphrase(SecureBytes.from_string("password123"), key_salt)
 
     assert result.decode() == "AbdTFsE7Z2WQjHtnC6/AIn.FdpyDXHS"
 
@@ -353,7 +355,7 @@ def test_derive_key_passphrase_returns_secure_bytes() -> None:
 def test_derive_key_passphrase_returns_31_bytes() -> None:
     key_salt = _create_key_salt()
 
-    result = KeyManager._derive_key_passphrase("password123", key_salt)
+    result = KeyManager._derive_key_passphrase(SecureBytes.from_string("password123"), key_salt)
 
     assert len(result) == 31
 
@@ -361,8 +363,8 @@ def test_derive_key_passphrase_returns_31_bytes() -> None:
 def test_derive_key_passphrase_is_deterministic() -> None:
     key_salt = _create_key_salt()
 
-    result1 = KeyManager._derive_key_passphrase("password123", key_salt)
-    result2 = KeyManager._derive_key_passphrase("password123", key_salt)
+    result1 = KeyManager._derive_key_passphrase(SecureBytes.from_string("password123"), key_salt)
+    result2 = KeyManager._derive_key_passphrase(SecureBytes.from_string("password123"), key_salt)
 
     assert result1 == result2
 
@@ -370,8 +372,8 @@ def test_derive_key_passphrase_is_deterministic() -> None:
 def test_derive_key_passphrase_differs_for_different_passwords() -> None:
     key_salt = _create_key_salt()
 
-    result1 = KeyManager._derive_key_passphrase("password1", key_salt)
-    result2 = KeyManager._derive_key_passphrase("password2", key_salt)
+    result1 = KeyManager._derive_key_passphrase(SecureBytes.from_string("password1"), key_salt)
+    result2 = KeyManager._derive_key_passphrase(SecureBytes.from_string("password2"), key_salt)
 
     assert result1 != result2
 
@@ -380,7 +382,7 @@ def test_derive_key_passphrase_differs_for_different_salts() -> None:
     salt1 = KeySalt(key_id="k1", salt=base64.b64encode(b"salt1___________").decode())
     salt2 = KeySalt(key_id="k2", salt=base64.b64encode(b"salt2___________").decode())
 
-    result1 = KeyManager._derive_key_passphrase("password", salt1)
-    result2 = KeyManager._derive_key_passphrase("password", salt2)
+    result1 = KeyManager._derive_key_passphrase(SecureBytes.from_string("password"), salt1)
+    result2 = KeyManager._derive_key_passphrase(SecureBytes.from_string("password"), salt2)
 
     assert result1 != result2

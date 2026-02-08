@@ -41,13 +41,18 @@ class KeyManager:
         self._unlocked_passphrases: dict[str, SecureBytes] = {}  # key_id -> passphrase
         self._loaded_keys: dict[str, PrivateKey] = {}  # key_id -> key
 
-    def unlock_user_key(self, user_key: UserKey, password: str, key_salt: KeySalt) -> SecureBytes:
+    def unlock_user_key(
+        self,
+        user_key: UserKey,
+        password: SecureBytes,
+        key_salt: KeySalt,
+    ) -> SecureBytes:
         """
         Unlock a user's primary key.
 
         Args:
             user_key: User key from API.
-            password: User's login password.
+            password: User's login password as SecureBytes.
             key_salt: Key salt from API.
 
         Returns:
@@ -256,14 +261,14 @@ class KeyManager:
         return key
 
     @staticmethod
-    def _derive_key_passphrase(password: str, key_salt: KeySalt) -> SecureBytes:
+    def _derive_key_passphrase(password: SecureBytes, key_salt: KeySalt) -> SecureBytes:
         """
         Derive key passphrase from user password and salt.
 
         Uses bcrypt with Proton's specific salt encoding.
 
         Args:
-            password: User's login password.
+            password: User's login password as SecureBytes.
             key_salt: KeySalt from the API.
 
         Returns:
@@ -278,9 +283,7 @@ class KeyManager:
 
         translation_table = str.maketrans(standard_alphabet, bcrypt_alphabet)
         bcrypt_salt = standard_b64.translate(translation_table)[:22]
-        bcrypt_hash = bcrypt.hashpw(
-            password.encode("utf-8"), f"$2y$10${bcrypt_salt}".encode("utf-8")
-        )
+        bcrypt_hash = bcrypt.hashpw(bytes(password), f"$2y$10${bcrypt_salt}".encode("utf-8"))
 
         # Return last 31 bytes
         return SecureBytes(bcrypt_hash[-31:])

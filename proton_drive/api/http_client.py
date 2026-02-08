@@ -5,6 +5,8 @@ Provides a clean interface for making API requests with automatic
 token refresh, error handling, and retry logic.
 """
 
+import asyncio
+from dataclasses import dataclass
 from enum import IntEnum
 from typing import Any
 
@@ -18,6 +20,7 @@ from proton_drive.exceptions import (
     RateLimitError,
     SessionExpiredError,
 )
+from proton_drive.utils import WaitGroup
 
 logger = structlog.get_logger(__name__)
 
@@ -51,13 +54,36 @@ def sanitize_for_log(data: dict[str, Any]) -> dict[str, Any]:
     """
     Remove sensitive fields from a dict before logging.
 
+    Recursively sanitizes nested dictionaries and lists.
+
     Args:
         data: Dictionary that may contain sensitive values.
 
     Returns:
         Copy with sensitive values replaced by "***".
     """
-    return {k: "***" if k in SENSITIVE_KEYS else v for k, v in data.items()}
+    result = {}
+    for key, value in data.items():
+        if key in SENSITIVE_KEYS:
+            result[key] = "***"
+        elif isinstance(value, dict):
+            result[key] = sanitize_for_log(value)
+        elif isinstance(value, list):
+            result[key] = [
+                sanitize_for_log(item) if isinstance(item, dict) else item for item in value
+            ]
+        else:
+            result[key] = value
+    return result
+
+
+@dataclass(frozen=True, slots=True)
+class Session:
+    """Immutable session data for atomic updates."""
+
+    uid: str
+    access_token: str
+    refresh_token: str
 
 
 class ProtonAPICode(IntEnum):
@@ -86,63 +112,90 @@ class AsyncHttpClient:
         self._config = config
         self._transport = transport
 
-        self._access_token: str | None = None
-        self._refresh_token: str | None = None
-        self._uid: str | None = None
-
+        self._session: Session | None = None
         self._client: httpx.AsyncClient | None = None
+
+        self._client_lock = asyncio.Lock()
+        self._refresh_lock = asyncio.Lock()
+        self._wait_group = WaitGroup()
 
     async def __aenter__(self) -> "AsyncHttpClient":
         await self._ensure_client()
         return self
 
     async def __aexit__(self, *args: Any) -> None:
-        await self.close()
+        await self._close()
 
     async def _ensure_client(self) -> httpx.AsyncClient:
-        if self._client is None:
-            self._client = httpx.AsyncClient(
-                base_url=self._config.api_url,
-                timeout=self._config.timeout,
-                transport=self._transport,
-                headers={
-                    "x-pm-apiversion": "3",
-                    "Accept": "application/vnd.protonmail.v1+json",
-                    "x-pm-appversion": self._config.app_version,
-                    "User-Agent": self._config.user_agent,
-                },
-            )
+        async with self._client_lock:
+            if self._client is None:
+                self._client = httpx.AsyncClient(
+                    base_url=self._config.api_url,
+                    timeout=self._config.timeout,
+                    transport=self._transport,
+                    headers={
+                        "x-pm-apiversion": "3",
+                        "Accept": "application/vnd.protonmail.v1+json",
+                        "x-pm-appversion": self._config.app_version,
+                        "User-Agent": self._config.user_agent,
+                    },
+                )
+            self._wait_group.add()
         return self._client
 
-    async def close(self) -> None:
-        """Close the HTTP client."""
-        if self._client is not None:
-            await self._client.aclose()
-            self._client = None
+    async def _close(self) -> None:
+        """Close the HTTP client if no other context managers hold a reference."""
+        async with self._client_lock:
+            if self._client is None:
+                logger.debug("Client not open.")
+                return
+            self._wait_group.done()
+            if self._wait_group != 0:
+                logger.debug("Skipping close, requests in progress", count=self._wait_group)
+                return
+            if self._client is not None:
+                await self._client.aclose()
+                self._client = None
+                self._wait_group = WaitGroup()
 
-    def set_session(self, uid: str, access_token: str, refresh_token: str) -> None:
+    async def set_session(self, uid: str, access_token: str, refresh_token: str) -> None:
         """
         Set session tokens after authentication.
+
+        Note:
+            Internal use only. Called by AuthService after successful
+            authentication. External callers should use AuthService.authenticate().
+
+        Acquires ``_refresh_lock`` so this cannot race with
+        ``_refresh_access_token`` writing ``self._session``.
 
         Args:
             uid: User ID.
             access_token: Bearer access token.
             refresh_token: Token for refreshing access.
         """
-        self._uid = uid
-        self._access_token = access_token
-        self._refresh_token = refresh_token
+        async with self._refresh_lock:
+            self._session = Session(uid=uid, access_token=access_token, refresh_token=refresh_token)
 
-    def clear_session(self) -> None:
-        """Clear session tokens."""
-        self._uid = None
-        self._access_token = None
-        self._refresh_token = None
+    async def clear_session(self) -> None:
+        """
+        Clear session tokens.
+
+        Note:
+            Internal use only. Called by AuthService.logout().
+        """
+        async with self._refresh_lock:
+            if self._wait_group != 0:
+                logger.debug("Skipping clear session, requests in progress", count=self._wait_group)
+                return
+            self._session = None
+            self._client = None
+            self._wait_group = WaitGroup()
 
     @property
     def is_authenticated(self) -> bool:
         """Check if we have session tokens."""
-        return self._access_token is not None
+        return self._session is not None
 
     async def request(
         self,
@@ -173,15 +226,16 @@ class AsyncHttpClient:
             httpx.HTTPError: If the request fails due to network issues.
             SessionExpiredError: If token refresh fails.
         """
-        client = await self._ensure_client()
-
+        session = self._session  # Capture atomically for consistent reads
         headers = {}
-        if authenticated and (self._access_token is not None):
-            headers["Authorization"] = f"Bearer {self._access_token}"
-            if self._uid is not None:
-                headers["x-pm-uid"] = self._uid
+        if authenticated and session is not None:
+            headers["Authorization"] = f"Bearer {session.access_token}"
+            headers["x-pm-uid"] = session.uid
 
-        response = await client.request(
+        if self._client is None:
+            msg = "HTTP client not initialized. Use 'async with' first."
+            raise RuntimeError(msg)
+        response = await self._client.request(
             method=method,
             url=endpoint,
             json=json,
@@ -200,13 +254,9 @@ class AsyncHttpClient:
 
         code = data.get("Code", 0)
 
-        if (
-            code == ProtonAPICode.INVALID_TOKEN
-            and auto_refresh
-            and (self._refresh_token is not None)
-        ):
+        if code == ProtonAPICode.INVALID_TOKEN and auto_refresh and (session is not None):
             logger.debug("Token expired, attempting refresh")
-            await self._refresh_access_token()
+            await self._refresh_access_token(stale_session=session)
             return await self.request(
                 method,
                 endpoint,
@@ -231,9 +281,15 @@ class AsyncHttpClient:
         """
         Make a raw HTTP request (for downloading blocks).
 
+        Security:
+            This method accepts arbitrary URLs. To prevent SSRF attacks,
+            only pass URLs obtained from trusted Proton API responses
+            (e.g., Block.URL from /drive/.../blocks endpoints).
+            NEVER pass user-supplied input directly to this method.
+
         Args:
             method: HTTP method.
-            url: Full URL (not just endpoint).
+            url: Full URL from Proton API response.
             timeout: Optional custom timeout.
 
         Returns:
@@ -242,8 +298,7 @@ class AsyncHttpClient:
         Raises:
             httpx.HTTPError: If the request fails.
         """
-        client = await self._ensure_client()
-        response = await client.request(
+        response = await self._client.request(
             method=method,
             url=url,
             timeout=timeout or self._config.block_download_timeout,
@@ -262,9 +317,15 @@ class AsyncHttpClient:
         """
         Stream a raw HTTP response (for large downloads).
 
+        Security:
+            This method accepts arbitrary URLs. To prevent SSRF attacks,
+            only pass URLs obtained from trusted Proton API responses
+            (e.g., Block.URL from /drive/.../blocks endpoints).
+            NEVER pass user-supplied input directly to this method.
+
         Args:
             method: HTTP method.
-            url: Full URL.
+            url: Full URL from Proton API response.
             timeout: Optional custom timeout.
             chunk_size: Size of chunks to yield.
 
@@ -274,9 +335,7 @@ class AsyncHttpClient:
         Raises:
             httpx.HTTPError: If the request fails.
         """
-        client = await self._ensure_client()
-
-        async with client.stream(
+        async with self._client.stream(
             method=method,
             url=url,
             timeout=timeout or self._config.block_download_timeout,
@@ -285,32 +344,40 @@ class AsyncHttpClient:
             async for chunk in response.aiter_bytes(chunk_size):
                 yield chunk
 
-    async def _refresh_access_token(self) -> None:
-        if self._refresh_token is None:
-            msg = "No refresh token available"
-            raise SessionExpiredError(msg)
+    async def _refresh_access_token(self, stale_session: Session) -> None:
+        async with self._refresh_lock:
+            if self._session is not stale_session:
+                logger.debug("Token already refreshed by another coroutine")
+                return
 
-        try:
-            response = await self.request(
-                "POST",
-                "/auth/refresh",
-                json={
-                    "ResponseType": "token",
-                    "GrantType": "refresh_token",
-                    "RefreshToken": self._refresh_token,
-                    "RedirectURI": self._config.redirect_uri,
-                },
-                authenticated=True,
-                auto_refresh=False,
-            )
+            if self._session is None:
+                msg = "No session available"
+                raise SessionExpiredError(msg)
 
-            self._access_token = response["AccessToken"]
-            self._refresh_token = response["RefreshToken"]
-            logger.debug("Token refreshed successfully")
+            try:
+                response = await self.request(
+                    "POST",
+                    "/auth/refresh",
+                    json={
+                        "ResponseType": "token",
+                        "GrantType": "refresh_token",
+                        "RefreshToken": self._session.refresh_token,
+                        "RedirectURI": self._config.redirect_uri,
+                    },
+                    authenticated=True,
+                    auto_refresh=False,
+                )
 
-        except APIError as e:
-            msg = f"Token refresh failed: {e.message}"
-            raise SessionExpiredError(msg) from e
+                self._session = Session(
+                    uid=self._session.uid,
+                    access_token=response["AccessToken"],
+                    refresh_token=response["RefreshToken"],
+                )
+                logger.debug("Token refreshed successfully")
+
+            except APIError as e:
+                msg = f"Token refresh failed: {e.message}"
+                raise SessionExpiredError(msg) from e
 
     @staticmethod
     def _raise_api_error(code: int, data: dict[str, Any], endpoint: str) -> None:

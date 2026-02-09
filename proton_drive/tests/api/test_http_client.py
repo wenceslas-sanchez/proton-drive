@@ -286,9 +286,9 @@ async def test_request_refreshes_token_on_401(
         )
         result = await client.request("GET", "/test")
 
-    assert result["Data"] == "success"
-    assert client._session.access_token == "new-token"
-    assert client._session.refresh_token == "new-refresh"
+        assert result["Data"] == "success"
+        assert client._session.access_token == "new-token"
+        assert client._session.refresh_token == "new-refresh"
 
 
 @pytest.mark.asyncio

@@ -155,8 +155,7 @@ class AsyncHttpClient:
                 return
             if self._client is not None:
                 await self._client.aclose()
-                self._client = None
-                self._wait_group = WaitGroup()
+                await self.clear_session()
 
     async def set_session(self, uid: str, access_token: str, refresh_token: str) -> None:
         """
@@ -182,7 +181,7 @@ class AsyncHttpClient:
         Clear session tokens.
 
         Note:
-            Internal use only. Called by AuthService.logout().
+            Called automatically when exiting the context manager.
         """
         async with self._refresh_lock:
             if self._wait_group != 0:

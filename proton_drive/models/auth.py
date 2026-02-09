@@ -29,16 +29,10 @@ class SessionInfo:
     Represents an authenticated Proton session.
 
     Attributes:
-        uid: Unique session identifier.
-        access_token: Bearer token for API requests.
-        refresh_token: Token for refreshing access_token.
-        scopes: List of granted scopes.
+        scopes: Granted authentication scopes.
         created_at: When the session was created.
     """
 
-    uid: str
-    access_token: str
-    refresh_token: str
     scopes: frozenset[str]
     created_at: datetime = field(default_factory=datetime.now)
 

@@ -1,10 +1,8 @@
 import asyncio
-from unittest.mock import Mock
 
 import pytest
 
-from proton_drive.crypto.secure_bytes import SecureBytes
-from proton_drive.services.key_cache import KeyCache, LRUCache, MetadataCache
+from proton_drive.core.cache import LRUCache, MetadataCache
 
 
 def test_lru_cache_put_and_get() -> None:
@@ -129,37 +127,6 @@ async def test_lru_cache_concurrent_eviction_maintains_max_size() -> None:
     for key in keys:
         value = cache.get(key)
         assert value is not None
-
-
-def test_key_cache_put_and_get() -> None:
-    """Test basic key cache operations."""
-    cache = KeyCache(max_size=10)
-
-    mock_key = Mock()
-    passphrase = SecureBytes(b"test_passphrase")
-
-    cache.put("link_123", mock_key, passphrase)
-
-    result = cache.get("link_123")
-    assert result is not None
-    key, retrieved_passphrase = result
-    assert key is mock_key
-    assert retrieved_passphrase is passphrase
-
-
-def test_key_cache_clear_securely_wipes_passphrases() -> None:
-    """Test clear() securely wipes all passphrases."""
-    cache = KeyCache(max_size=10)
-
-    mock_key = Mock()
-    passphrase = Mock(spec=SecureBytes)
-    passphrase.clear = Mock()
-
-    cache.put("link_1", mock_key, passphrase)
-    cache.clear()
-
-    passphrase.clear.assert_called_once()
-    assert len(cache) == 0
 
 
 def test_metadata_cache_link_operations() -> None:

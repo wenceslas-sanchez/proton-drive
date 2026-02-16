@@ -8,10 +8,12 @@ Each level's key unlocks the next, with passphrases encrypted to the parent key.
 """
 
 import base64
+from dataclasses import dataclass
 
 import bcrypt
 import structlog
 
+from proton_drive.core.cache import LRUCache
 from proton_drive.crypto.pgpy_backend import PgpyBackend
 from proton_drive.crypto.protocol import PGPBackend, PrivateKey
 from proton_drive.crypto.secure_bytes import SecureBytes
@@ -19,6 +21,69 @@ from proton_drive.exceptions import KeyDecryptionError, KeyUnlockError
 from proton_drive.models.auth import AddressKey, KeySalt, UserKey
 
 logger = structlog.get_logger(__name__)
+
+
+@dataclass
+class CachedKey:
+    """A cached key with its passphrase."""
+
+    key: PrivateKey
+    passphrase: SecureBytes
+
+
+class KeyCache:
+    """
+    Cache for decrypted PGP keys.
+
+    Stores unlocked share and node keys to avoid repeated decryption.
+    """
+
+    def __init__(self, max_size: int = 1000) -> None:
+        """
+        Args:
+            max_size: Maximum number of keys to cache.
+        """
+        self._cache: LRUCache[CachedKey] = LRUCache(max_size)
+
+    def get(self, identifier: str) -> tuple[PrivateKey, SecureBytes] | None:
+        """
+        Get cached key.
+
+        Args:
+            identifier: Share ID or link ID.
+
+        Returns:
+            Tuple of (key, passphrase) or None if not cached.
+        """
+        cached = self._cache.get(identifier)
+        if cached is not None:
+            return cached.key, cached.passphrase
+        return None
+
+    def put(self, identifier: str, key: PrivateKey, passphrase: SecureBytes) -> None:
+        """
+        Cache a key.
+
+        Args:
+            identifier: Share ID or link ID.
+            key: The decrypted key.
+            passphrase: The key passphrase.
+        """
+        self._cache.put(identifier, CachedKey(key=key, passphrase=passphrase))
+
+    def clear(self) -> None:
+        """
+        Clear all cached keys.
+
+        Securely wipes all SecureBytes passphrases.
+        """
+        for identifier in self._cache.keys():
+            cached = self._cache.remove(identifier)
+            if cached is not None:
+                cached.passphrase.clear()
+
+    def __len__(self) -> int:
+        return len(self._cache)
 
 
 class KeyManager:
@@ -32,14 +97,20 @@ class KeyManager:
     4. Node Keys: passphrase encrypted to parent's Node Key (or Share Key for root)
     """
 
-    def __init__(self, pgp_backend: PGPBackend | None = None) -> None:
+    def __init__(
+        self,
+        pgp_backend: PGPBackend | None = None,
+        cache_size: int = 1000,
+    ) -> None:
         """
         Args:
             pgp_backend: PGP backend for crypto operations. Defaults to PgpyBackend.
+            cache_size: Maximum number of keys to cache (share keys + node keys).
         """
         self._pgp = pgp_backend if pgp_backend is not None else PgpyBackend()  # todo remove default
         self._unlocked_passphrases: dict[str, SecureBytes] = {}  # key_id -> passphrase
         self._loaded_keys: dict[str, PrivateKey] = {}  # key_id -> key
+        self._cache = KeyCache(max_size=cache_size)
 
     def unlock_user_key(
         self,
@@ -129,6 +200,7 @@ class KeyManager:
 
     def unlock_share_key(
         self,
+        share_id: str,
         share_key_armored: str,
         encrypted_passphrase: str,
         address_key_id: str,
@@ -136,7 +208,10 @@ class KeyManager:
         """
         Unlock a share key using an address key.
 
+        If not cached, decrypts and caches the result.
+
         Args:
+            share_id: Share ID.
             share_key_armored: ASCII-armored share key.
             encrypted_passphrase: Passphrase encrypted to address key.
             address_key_id: ID of the unlocked address key.
@@ -147,6 +222,10 @@ class KeyManager:
         Raises:
             KeyDecryptionError: If unlocking fails.
         """
+        if (cached := self._cache.get(share_id)) is not None:
+            logger.debug("Share key retrieved from cache", share_id=share_id)
+            return cached
+
         if address_key_id not in self._unlocked_passphrases:
             msg = "Address key not unlocked"
             raise KeyDecryptionError(msg, key_type="address")
@@ -162,7 +241,9 @@ class KeyManager:
 
             share_key = self._load_and_verify_key(share_key_armored, passphrase)
 
-            logger.debug("Unlocked share key")
+            self._cache.put(share_id, share_key, passphrase)
+
+            logger.debug("Unlocked and cached share key", share_id=share_id)
             return share_key, passphrase
 
         except Exception as e:
@@ -171,6 +252,7 @@ class KeyManager:
 
     def unlock_node_key(
         self,
+        link_id: str,
         node_key_armored: str | None,
         encrypted_passphrase: str | None,
         parent_key: PrivateKey,
@@ -179,7 +261,10 @@ class KeyManager:
         """
         Unlock a node key using its parent's key.
 
+        If not cached, decrypts and caches the result.
+
         Args:
+            link_id: Link ID.
             node_key_armored: ASCII-armored node key (may be None for some nodes).
             encrypted_passphrase: Passphrase encrypted to parent key.
             parent_key: Parent's unlocked key.
@@ -192,6 +277,10 @@ class KeyManager:
         Raises:
             KeyDecryptionError: If unlocking fails.
         """
+        if (cached := self._cache.get(link_id)) is not None:
+            logger.debug("Node key retrieved from cache", link_id=link_id[:8])
+            return cached
+
         if not node_key_armored:
             return parent_key, parent_passphrase
 
@@ -206,6 +295,9 @@ class KeyManager:
 
             node_key = self._load_and_verify_key(node_key_armored, passphrase)
 
+            self._cache.put(link_id, node_key, passphrase)
+
+            logger.debug("Unlocked and cached node key", link_id=link_id[:8])
             return node_key, passphrase
 
         except Exception as e:
@@ -247,12 +339,25 @@ class KeyManager:
         """Get an unlocked passphrase by key ID."""
         return self._unlocked_passphrases.get(key_id)
 
+    def get_cached_key(self, identifier: str) -> tuple[PrivateKey, SecureBytes] | None:
+        """
+        Get a cached key.
+
+        Args:
+            identifier: Share ID or link ID.
+
+        Returns:
+            Tuple of (key, passphrase) or None if not cached.
+        """
+        return self._cache.get(identifier)
+
     def clear(self) -> None:
         """Clear all cached keys and passphrases."""
         for passphrase in self._unlocked_passphrases.values():
             passphrase.clear()
         self._unlocked_passphrases.clear()
         self._loaded_keys.clear()
+        self._cache.clear()
 
     def _load_and_verify_key(self, armored_key: str, passphrase: SecureBytes) -> PrivateKey:
         key = self._pgp.load_private_key(armored_key)

@@ -23,7 +23,7 @@ from proton_drive.models.auth import AddressKey, KeySalt, UserKey
 logger = structlog.get_logger(__name__)
 
 
-@dataclass
+@dataclass(frozen=True)
 class CachedKey:
     """A cached key with its passphrase."""
 

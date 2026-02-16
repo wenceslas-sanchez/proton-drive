@@ -108,9 +108,8 @@ class KeyManager:
             cache_size: Maximum number of keys to cache (share keys + node keys).
         """
         self._pgp = pgp_backend if pgp_backend is not None else PgpyBackend()  # todo remove default
-        self._unlocked_passphrases: dict[str, SecureBytes] = {}  # key_id -> passphrase
-        self._loaded_keys: dict[str, PrivateKey] = {}  # key_id -> key
-        self._cache = KeyCache(max_size=cache_size)
+        self._auth_keys: dict[str, CachedKey] = {}  # User and address keys
+        self._cache = KeyCache(max_size=cache_size)  # Share and node keys
 
     def unlock_user_key(
         self,
@@ -135,12 +134,9 @@ class KeyManager:
         try:
             passphrase = self._derive_key_passphrase(password, key_salt)
             key = self._load_and_verify_key(user_key.armored_key, passphrase)
+            self._auth_keys[user_key.key_id] = CachedKey(key=key, passphrase=passphrase)
 
-            # Cache the key and passphrase
-            self._loaded_keys[user_key.key_id] = key
-            self._unlocked_passphrases[user_key.key_id] = passphrase
-
-            logger.debug("Unlocked user key", key_id=user_key.key_id[:8])
+            logger.debug("Unlocked user key", key_id=user_key.key_id)
             return passphrase
 
         except KeyDecryptionError:
@@ -166,32 +162,29 @@ class KeyManager:
         Raises:
             KeyDecryptionError: If unlocking fails.
         """
-        if address_key.key_id in self._unlocked_passphrases:
-            return self._unlocked_passphrases[address_key.key_id]
+        if address_key.key_id in self._auth_keys:
+            return self._auth_keys[address_key.key_id].passphrase
 
-        if user_key_id not in self._unlocked_passphrases:
+        if user_key_id not in self._auth_keys:
             msg = "User key not unlocked"
             raise KeyDecryptionError(msg, key_type="user")
 
-        user_passphrase = self._unlocked_passphrases[user_key_id]
-        user_key = self._loaded_keys[user_key_id]
-
+        user_cached = self._auth_keys[user_key_id]
         try:
             if address_key.token:
                 passphrase_bytes = self._pgp.decrypt_message(
-                    address_key.token, user_key, user_passphrase
+                    address_key.token, user_cached.key, user_cached.passphrase
                 )
                 passphrase = SecureBytes(passphrase_bytes)
             else:
                 # Address key uses the same passphrase as user key
-                passphrase = user_passphrase
+                passphrase = user_cached.passphrase
 
             key = self._load_and_verify_key(address_key.armored_key, passphrase)
 
-            self._loaded_keys[address_key.key_id] = key
-            self._unlocked_passphrases[address_key.key_id] = passphrase
+            self._auth_keys[address_key.key_id] = CachedKey(key=key, passphrase=passphrase)
 
-            logger.debug("Unlocked address key", key_id=address_key.key_id[:8])
+            logger.debug("Unlocked address key", key_id=address_key.key_id)
             return passphrase
 
         except Exception as e:
@@ -226,12 +219,13 @@ class KeyManager:
             logger.debug("Share key retrieved from cache", share_id=share_id)
             return cached
 
-        if address_key_id not in self._unlocked_passphrases:
+        if address_key_id not in self._auth_keys:
             msg = "Address key not unlocked"
             raise KeyDecryptionError(msg, key_type="address")
 
-        addr_passphrase = self._unlocked_passphrases[address_key_id]
-        addr_key = self._loaded_keys[address_key_id]
+        addr_cached = self._auth_keys[address_key_id]
+        addr_key = addr_cached.key
+        addr_passphrase = addr_cached.passphrase
 
         try:
             passphrase_bytes = self._pgp.decrypt_message(
@@ -278,7 +272,7 @@ class KeyManager:
             KeyDecryptionError: If unlocking fails.
         """
         if (cached := self._cache.get(link_id)) is not None:
-            logger.debug("Node key retrieved from cache", link_id=link_id[:8])
+            logger.debug("Node key retrieved from cache", link_id=link_id)
             return cached
 
         if not node_key_armored:
@@ -297,7 +291,7 @@ class KeyManager:
 
             self._cache.put(link_id, node_key, passphrase)
 
-            logger.debug("Unlocked and cached node key", link_id=link_id[:8])
+            logger.debug("Unlocked and cached node key", link_id=link_id)
             return node_key, passphrase
 
         except Exception as e:
@@ -333,11 +327,13 @@ class KeyManager:
 
     def get_loaded_key(self, key_id: str) -> PrivateKey | None:
         """Get a loaded key by ID."""
-        return self._loaded_keys.get(key_id)
+        cached = self._auth_keys.get(key_id)
+        return cached.key if cached else None
 
     def get_passphrase(self, key_id: str) -> SecureBytes | None:
         """Get an unlocked passphrase by key ID."""
-        return self._unlocked_passphrases.get(key_id)
+        cached = self._auth_keys.get(key_id)
+        return cached.passphrase if cached else None
 
     def get_cached_key(self, identifier: str) -> tuple[PrivateKey, SecureBytes] | None:
         """
@@ -353,10 +349,9 @@ class KeyManager:
 
     def clear(self) -> None:
         """Clear all cached keys and passphrases."""
-        for passphrase in self._unlocked_passphrases.values():
-            passphrase.clear()
-        self._unlocked_passphrases.clear()
-        self._loaded_keys.clear()
+        for cached in self._auth_keys.values():
+            cached.passphrase.clear()
+        self._auth_keys.clear()
         self._cache.clear()
 
     def _load_and_verify_key(self, armored_key: str, passphrase: SecureBytes) -> PrivateKey:

@@ -182,6 +182,7 @@ def test_unlock_share_key_returns_key_and_passphrase() -> None:
     manager.unlock_address_key(address_key, user_key.key_id)
 
     share_key, passphrase = manager.unlock_share_key(
+        "share_123",
         "-----BEGIN PGP PRIVATE KEY-----",
         "encrypted_passphrase",
         address_key.key_id,
@@ -197,6 +198,7 @@ def test_unlock_share_key_raises_if_address_key_not_unlocked() -> None:
 
     with pytest.raises(KeyDecryptionError, match="Address key not unlocked"):
         manager.unlock_share_key(
+            "share_123",
             "-----BEGIN PGP PRIVATE KEY-----",
             "encrypted_passphrase",
             "nonexistent_key",
@@ -215,6 +217,7 @@ def test_unlock_share_key_raises_on_decryption_failure() -> None:
 
     with pytest.raises(KeyDecryptionError, match="Failed to unlock share key"):
         manager.unlock_share_key(
+            "share_123",
             "-----BEGIN PGP PRIVATE KEY-----",
             "encrypted_passphrase",
             address_key.key_id,
@@ -228,7 +231,7 @@ def test_unlock_node_key_returns_parent_key_if_no_node_key() -> None:
     parent_passphrase = SecureBytes(b"parent_pass")
 
     node_key, passphrase = manager.unlock_node_key(
-        None, "encrypted_passphrase", parent_key, parent_passphrase
+        "link_123", None, "encrypted_passphrase", parent_key, parent_passphrase
     )
 
     assert node_key is parent_key
@@ -242,6 +245,7 @@ def test_unlock_node_key_decrypts_passphrase_when_provided() -> None:
     parent_passphrase = SecureBytes(b"parent_pass")
 
     manager.unlock_node_key(
+        "link_123",
         "-----BEGIN PGP PRIVATE KEY-----",
         "encrypted_passphrase",
         parent_key,
@@ -258,6 +262,7 @@ def test_unlock_node_key_uses_parent_passphrase_if_no_encrypted_passphrase() -> 
     parent_passphrase = SecureBytes(b"parent_pass")
 
     node_key, passphrase = manager.unlock_node_key(
+        "link_123",
         "-----BEGIN PGP PRIVATE KEY-----",
         None,
         parent_key,
@@ -277,6 +282,7 @@ def test_unlock_node_key_raises_on_decryption_failure() -> None:
 
     with pytest.raises(KeyDecryptionError, match="Failed to unlock node key"):
         manager.unlock_node_key(
+            "link_123",
             "-----BEGIN PGP PRIVATE KEY-----",
             "encrypted_passphrase",
             parent_key,
@@ -417,3 +423,135 @@ def test_derive_key_passphrase_differs_for_different_salts() -> None:
     result2 = KeyManager._derive_key_passphrase(SecureBytes.from_string("password"), salt2)
 
     assert result1 != result2
+
+
+def test_unlock_share_key_caches_result() -> None:
+    """Test that unlock_share_key caches the result for subsequent calls."""
+    backend = _create_mock_backend()
+    manager = KeyManager(pgp_backend=backend)
+    user_key = _create_user_key()
+    key_salt = _create_key_salt()
+    manager.unlock_user_key(user_key, SecureBytes.from_string("password"), key_salt)
+    address_key = _create_address_key()
+    manager.unlock_address_key(address_key, user_key.key_id)
+
+    # First call
+    share_key1, passphrase1 = manager.unlock_share_key(
+        "share_123",
+        "-----BEGIN PGP PRIVATE KEY-----",
+        "encrypted_passphrase",
+        address_key.key_id,
+    )
+
+    # Reset mock to verify cache hit
+    backend.decrypt_message.reset_mock()
+    backend.load_private_key.reset_mock()
+
+    # Second call with same share_id should hit cache
+    share_key2, passphrase2 = manager.unlock_share_key(
+        "share_123",
+        "-----BEGIN PGP PRIVATE KEY-----",
+        "encrypted_passphrase",
+        address_key.key_id,
+    )
+
+    # Should return cached values without calling backend
+    assert share_key1 is share_key2
+    assert passphrase1 is passphrase2
+    backend.decrypt_message.assert_not_called()
+    backend.load_private_key.assert_not_called()
+
+
+def test_unlock_node_key_caches_result() -> None:
+    """Test that unlock_node_key caches the result for subsequent calls."""
+    backend = _create_mock_backend()
+    manager = KeyManager(pgp_backend=backend)
+    parent_key = Mock()
+    parent_passphrase = SecureBytes(b"parent_pass")
+
+    # First call
+    node_key1, passphrase1 = manager.unlock_node_key(
+        "link_123",
+        "-----BEGIN PGP PRIVATE KEY-----",
+        "encrypted_passphrase",
+        parent_key,
+        parent_passphrase,
+    )
+
+    # Reset mock to verify cache hit
+    backend.decrypt_message.reset_mock()
+    backend.load_private_key.reset_mock()
+
+    # Second call with same link_id should hit cache
+    node_key2, passphrase2 = manager.unlock_node_key(
+        "link_123",
+        "-----BEGIN PGP PRIVATE KEY-----",
+        "encrypted_passphrase",
+        parent_key,
+        parent_passphrase,
+    )
+
+    # Should return cached values without calling backend
+    assert node_key1 is node_key2
+    assert passphrase1 is passphrase2
+    backend.decrypt_message.assert_not_called()
+    backend.load_private_key.assert_not_called()
+
+
+def test_get_cached_key_returns_cached_share_key() -> None:
+    """Test get_cached_key returns share keys."""
+    backend = _create_mock_backend()
+    manager = KeyManager(pgp_backend=backend)
+    user_key = _create_user_key()
+    key_salt = _create_key_salt()
+    manager.unlock_user_key(user_key, SecureBytes.from_string("password"), key_salt)
+    address_key = _create_address_key()
+    manager.unlock_address_key(address_key, user_key.key_id)
+
+    share_key, passphrase = manager.unlock_share_key(
+        "share_123",
+        "-----BEGIN PGP PRIVATE KEY-----",
+        "encrypted_passphrase",
+        address_key.key_id,
+    )
+
+    cached = manager.get_cached_key("share_123")
+    assert cached is not None
+    cached_key, cached_passphrase = cached
+    assert cached_key is share_key
+    assert cached_passphrase is passphrase
+
+
+def test_get_cached_key_returns_none_if_not_cached() -> None:
+    """Test get_cached_key returns None for non-existent keys."""
+    backend = _create_mock_backend()
+    manager = KeyManager(pgp_backend=backend)
+
+    result = manager.get_cached_key("nonexistent")
+    assert result is None
+
+
+def test_clear_clears_cached_keys() -> None:
+    """Test that clear() also clears the internal key cache."""
+    backend = _create_mock_backend()
+    manager = KeyManager(pgp_backend=backend)
+    user_key = _create_user_key()
+    key_salt = _create_key_salt()
+    manager.unlock_user_key(user_key, SecureBytes.from_string("password"), key_salt)
+    address_key = _create_address_key()
+    manager.unlock_address_key(address_key, user_key.key_id)
+
+    # Cache a share key
+    manager.unlock_share_key(
+        "share_123",
+        "-----BEGIN PGP PRIVATE KEY-----",
+        "encrypted_passphrase",
+        address_key.key_id,
+    )
+
+    manager.clear()
+
+    # All caches should be cleared
+    assert manager.get_loaded_key(user_key.key_id) is None
+    assert manager.get_passphrase(user_key.key_id) is None
+    assert manager.get_cached_key("share_123") is None

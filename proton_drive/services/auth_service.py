@@ -214,6 +214,7 @@ class AuthService:
                     error_type=type(e).__name__,
                 )
                 self._scopes = previous_scopes
+                raise
 
             return SessionInfo(scopes=self._scopes)
 

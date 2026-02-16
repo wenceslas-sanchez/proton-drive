@@ -1,26 +1,9 @@
-"""
-LRU cache for decrypted keys and metadata.
-
-Caches decrypted node keys to avoid repeated decryption operations
-during tree traversal and file downloads.
-"""
+"""LRU cache and metadata cache utilities."""
 
 from collections import OrderedDict
-from dataclasses import dataclass
 from typing import Generic, TypeVar
 
-from proton_drive.crypto.protocol import PrivateKey
-from proton_drive.crypto.secure_bytes import SecureBytes
-
 T = TypeVar("T")
-
-
-@dataclass
-class CachedKey:
-    """A cached key with its passphrase."""
-
-    key: PrivateKey
-    passphrase: SecureBytes
 
 
 class LRUCache(Generic[T]):
@@ -99,63 +82,6 @@ class LRUCache(Generic[T]):
     def keys(self) -> list[str]:
         """Return list of all cache keys."""
         return list(self._cache.keys())
-
-
-class KeyCache:
-    """
-    Cache for decrypted PGP keys.
-
-    Stores unlocked node keys to avoid repeated decryption during
-    tree traversal and file operations.
-    """
-
-    def __init__(self, max_size: int = 1000) -> None:
-        """
-        Args:
-            max_size: Maximum number of keys to cache.
-        """
-        self._cache: LRUCache[CachedKey] = LRUCache(max_size)
-
-    def get(self, link_id: str) -> tuple[PrivateKey, SecureBytes] | None:
-        """
-        Get cached key for a link.
-
-        Args:
-            link_id: The link ID.
-
-        Returns:
-            Tuple of (key, passphrase) or None if not cached.
-        """
-        cached = self._cache.get(link_id)
-        if cached is not None:
-            return cached.key, cached.passphrase
-        return None
-
-    def put(self, link_id: str, key: PrivateKey, passphrase: SecureBytes) -> None:
-        """
-        Cache a key for a link.
-
-        Args:
-            link_id: The link ID.
-            key: The decrypted key.
-            passphrase: The key passphrase.
-        """
-        self._cache.put(link_id, CachedKey(key=key, passphrase=passphrase))
-
-    def clear(self) -> None:
-        """
-        Clear all cached keys.
-
-        Also clears the SecureBytes passphrases.
-        """
-        # Clear passphrases securely before removing
-        for link_id in self._cache.keys():
-            cached = self._cache.remove(link_id)
-            if cached is not None:
-                cached.passphrase.clear()
-
-    def __len__(self) -> int:
-        return len(self._cache)
 
 
 class MetadataCache:

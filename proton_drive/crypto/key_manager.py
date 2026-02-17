@@ -303,7 +303,7 @@ class KeyManager:
         encrypted_name: str,
         parent_key: PrivateKey,
         parent_passphrase: SecureBytes,
-    ) -> str:
+    ) -> str | None:
         """
         Decrypt a file or folder name.
 
@@ -316,14 +316,14 @@ class KeyManager:
             Decrypted name string.
         """
         if not encrypted_name:
-            return ""
+            return None
 
         try:
             decrypted = self._pgp.decrypt_message(encrypted_name, parent_key, parent_passphrase)
             return decrypted.decode("utf-8")
         except Exception as e:
             logger.warning("Failed to decrypt name", error=str(e))
-            return f"[encrypted: {str(e)[:20]}]"
+            return None
 
     def get_loaded_key(self, key_id: str) -> PrivateKey | None:
         """Get a loaded key by ID."""

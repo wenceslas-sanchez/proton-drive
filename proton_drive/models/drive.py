@@ -159,7 +159,7 @@ class DriveNode:
             The node at the path, or None if not found.
         """
         parts = [p for p in path.strip("/").split("/") if p]
-        current: Self | None = self
+        current = self
 
         for part in parts:
             if current is None or not current.is_folder:
@@ -170,7 +170,7 @@ class DriveNode:
 
     def to_dict(self) -> dict[str, object]:
         """Convert to dictionary representation."""
-        result: dict[str, object] = {
+        result = {
             "name": self.name,
             "type": "folder" if self.is_folder else "file",
             "link_id": self.link_id,

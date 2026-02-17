@@ -157,9 +157,9 @@ class PgpyBackend:
             raise KeyDecryptionError(msg) from e
 
     @staticmethod
-    def _normalize_decrypted_content(content: bytes | str) -> bytes:
-        if isinstance(content, bytes):
-            return content
+    def _normalize_decrypted_content(content: bytes | str | bytearray) -> bytes:
+        if isinstance(content, (bytes, bytearray)):
+            return bytes(content)
         return content.encode("utf-8")
 
     @staticmethod

@@ -127,6 +127,18 @@ class DriveNode:
                 return child
         return None
 
+    def count_descendants(self) -> int:
+        """
+        Count total number of descendant nodes.
+
+        Returns:
+            Total count of children, grandchildren, etc.
+        """
+        count = len(self.children)
+        for child in self.children:
+            count += child.count_descendants()
+        return count
+
     def walk(self) -> "DriveNodeIterator":
         """
         Iterate over this node and all descendants.

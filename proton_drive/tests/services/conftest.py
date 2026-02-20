@@ -8,9 +8,14 @@ from proton_drive.crypto.key_manager import KeyManager
 
 @pytest.fixture
 def mock_key_manager() -> Mock:
+    mock_key = Mock()
+    mock_passphrase = Mock()
     manager = Mock(spec=KeyManager)
     manager.unlock_user_key = Mock()
     manager.clear = Mock()
+    manager.get_cached_key.return_value = (mock_key, mock_passphrase)
+    manager.unlock_node_key.return_value = (mock_key, mock_passphrase)
+    manager.decrypt_name.side_effect = lambda encrypted_name, *_: encrypted_name
     return manager
 
 

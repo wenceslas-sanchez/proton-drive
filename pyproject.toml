@@ -3,7 +3,7 @@ name = "proton-drive"
 version = "0.1.0"
 description = "Async Python client for Proton Drive with full end-to-end encryption support"
 readme = "README.md"
-requires-python = "==3.13.2"
+requires-python = "==3.14"
 license = { text = "GPL-3.0-only" }
 authors = [
     { name = "Wenceslas Sanchez" }
@@ -13,7 +13,7 @@ classifiers = [
     "Development Status :: 3 - Alpha",
     "Intended Audience :: Developers",
     "License :: OSI Approved :: GNU General Public License v3 (GPLv3)",
-    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
 ]
 dependencies = [
     "httpx==0.28.1",

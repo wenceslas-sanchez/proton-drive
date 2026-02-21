@@ -113,8 +113,8 @@ class PgpyBackend:
 
         Args:
             content_key_packet: Raw bytes of the ContentKeyPacket (base64-decoded).
-            private_key: Node key for decryption.
-            passphrase: Node key passphrase.
+            private_key: Node key for decryption. Must already be unlocked by the caller.
+            passphrase: Node key passphrase (unused directly; key must be pre-unlocked).
 
         Returns:
             SessionKey containing the algorithm and key bytes.
@@ -124,10 +124,9 @@ class PgpyBackend:
         """
         try:
             pkesk = parse_pkesk_packet(content_key_packet)
-            with private_key.pgpy_key.unlock(passphrase.decode()):
-                encryption_key = self._find_encryption_key(private_key.pgpy_key)
-                decrypted_payload = self._decrypt_session_key_mpi(encryption_key, pkesk)
-                return self._parse_session_key_payload(decrypted_payload)
+            encryption_key = self._find_encryption_key(private_key.pgpy_key)
+            decrypted_payload = self._decrypt_session_key_mpi(encryption_key, pkesk)
+            return self._parse_session_key_payload(decrypted_payload)
         except SessionKeyError:
             raise
         except Exception as e:

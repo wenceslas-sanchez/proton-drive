@@ -87,8 +87,8 @@ class PGPBackend(Protocol):
 
         Args:
             content_key_packet: Raw bytes of the ContentKeyPacket.
-            private_key: Private key for decryption.
-            passphrase: Key passphrase.
+            private_key: Private key for decryption. Must already be unlocked via unlock_key.
+            passphrase: Key passphrase (unused directly; key must be pre-unlocked).
 
         Returns:
             SessionKey containing the algorithm and key bytes.

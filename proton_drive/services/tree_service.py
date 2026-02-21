@@ -24,6 +24,8 @@ from proton_drive.models.drive import DriveNode, Link, LinkState, NodeType, Shar
 
 logger = structlog.get_logger(__name__)
 DEFAULT_NODE_NAME = "[undefined]"
+# Maximum folder depth when building the full tree to prevent runaway traversal.
+_MAX_DEPTH = 50
 
 
 def _split_path(path: str) -> list[str]:
@@ -94,9 +96,12 @@ class TreeService:
         logger.debug("Share initialized", share_id=share.share_id)
         return share
 
-    async def build_tree(self) -> DriveNode:
+    async def build_tree(self, max_depth: int = _MAX_DEPTH) -> DriveNode:
         """
         Build complete folder tree.
+
+        Args:
+            max_depth: Maximum folder depth to traverse.
 
         Returns:
             Root DriveNode with children populated.
@@ -113,7 +118,7 @@ class TreeService:
         )
 
         children = await self._build_subtree(
-            self._share.share_id, root_link.link_id, root_key, root_passphrase
+            self._share.share_id, root_link.link_id, root_key, root_passphrase, max_depth
         )
 
         return DriveNode(
@@ -237,7 +242,12 @@ class TreeService:
         parent_link_id: str,
         parent_key: PrivateKey,
         parent_passphrase: SecureBytes,
+        depth: int = _MAX_DEPTH,
     ) -> list[DriveNode]:
+        if depth <= 0:
+            logger.warning("Maximum tree depth reached, truncating", link_id=parent_link_id)
+            return []
+
         try:
             children = await list_folder_children(self._http, share_id, parent_link_id)
         except Exception as e:
@@ -245,7 +255,7 @@ class TreeService:
             return []
 
         tasks = [
-            self._process_link(link, share_id, parent_link_id, parent_key, parent_passphrase)
+            self._process_link(link, share_id, parent_link_id, parent_key, parent_passphrase, depth)
             for link in children
         ]
         results = await asyncio.gather(*tasks)
@@ -258,6 +268,7 @@ class TreeService:
         parent_link_id: str,
         parent_key: PrivateKey,
         parent_passphrase: SecureBytes,
+        depth: int,
     ) -> DriveNode | None:
         if link.state != LinkState.ACTIVE:
             return None
@@ -268,7 +279,7 @@ class TreeService:
         )
 
         children_nodes = (
-            await self._get_folder_children(link, share_id, parent_key, parent_passphrase)
+            await self._get_folder_children(link, share_id, parent_key, parent_passphrase, depth)
             if link.node_type == NodeType.FOLDER
             else ()
         )
@@ -281,13 +292,16 @@ class TreeService:
         share_id: str,
         parent_key: PrivateKey,
         parent_passphrase: SecureBytes,
+        depth: int,
     ) -> tuple[DriveNode, ...]:
         try:
             folder_key, folder_passphrase = await self._unlock_link(
                 link, share_id, parent_key, parent_passphrase
             )
             return tuple(
-                await self._build_subtree(share_id, link.link_id, folder_key, folder_passphrase)
+                await self._build_subtree(
+                    share_id, link.link_id, folder_key, folder_passphrase, depth - 1
+                )
             )
         except Exception as e:
             logger.warning("Failed to process folder", link_id=link.link_id, exc_info=e)

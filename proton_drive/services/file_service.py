@@ -6,7 +6,7 @@ Handles streaming file downloads with decryption.
 
 import base64
 import hashlib
-from collections.abc import AsyncIterator
+from collections.abc import AsyncGenerator
 from pathlib import Path
 
 import structlog
@@ -64,7 +64,7 @@ class FileService:
         self._tree_service = tree_service
         self._pgp = pgp_backend or PgpyBackend()
 
-    async def download_file(self, path: str) -> AsyncIterator[bytes]:
+    async def download_file(self, path: str) -> AsyncGenerator[bytes, None]:
         """
         Download and decrypt a file as a stream.
 
@@ -96,7 +96,7 @@ class FileService:
         ):
             yield chunk
 
-    async def download_by_link_id(self, share_id: str, link_id: str) -> AsyncIterator[bytes]:
+    async def download_by_link_id(self, share_id: str, link_id: str) -> AsyncGenerator[bytes, None]:
         """
         Download and decrypt a file by link ID.
 
@@ -115,7 +115,7 @@ class FileService:
         async for chunk in self._stream_file(share_id, link):
             yield chunk
 
-    async def _stream_file(self, share_id: str, link: Link) -> AsyncIterator[bytes]:
+    async def _stream_file(self, share_id: str, link: Link) -> AsyncGenerator[bytes, None]:
         node_key, node_passphrase = await self._get_node_key(share_id, link)
         session_key = self._get_session_key(link, node_key, node_passphrase)
         revision_id = await self._get_active_revision_id(share_id, link)

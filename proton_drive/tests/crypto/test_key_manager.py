@@ -302,7 +302,7 @@ def test_decrypt_name_returns_decrypted_string() -> None:
     assert result == "my_file.txt"
 
 
-def test_decrypt_name_returns_empty_string_for_empty_input() -> None:
+def test_decrypt_name_returns_none_for_empty_input() -> None:
     backend = _create_mock_backend()
     manager = KeyManager(pgp_backend=backend)
     parent_key = Mock()
@@ -310,11 +310,11 @@ def test_decrypt_name_returns_empty_string_for_empty_input() -> None:
 
     result = manager.decrypt_name("", parent_key, parent_passphrase)
 
-    assert result == ""
+    assert result is None
     backend.decrypt_message.assert_not_called()
 
 
-def test_decrypt_name_returns_placeholder_on_failure() -> None:
+def test_decrypt_name_returns_none_on_failure() -> None:
     backend = _create_mock_backend()
     backend.decrypt_message.side_effect = ValueError("decrypt error")
     manager = KeyManager(pgp_backend=backend)
@@ -323,7 +323,7 @@ def test_decrypt_name_returns_placeholder_on_failure() -> None:
 
     result = manager.decrypt_name("encrypted_name", parent_key, parent_passphrase)
 
-    assert result.startswith("[encrypted:")
+    assert result is None
 
 
 def test_get_loaded_key_returns_key_if_exists() -> None:

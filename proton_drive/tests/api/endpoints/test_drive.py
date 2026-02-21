@@ -51,6 +51,7 @@ async def test_get_share_returns_share(mock_http: Mock) -> None:
                 "Passphrase": "share-passphrase",
                 "AddressID": "addr-1",
                 "AddressKeyID": "addr-key-1",
+                "State": 1,
             }
         )
     )
@@ -139,6 +140,8 @@ async def test_list_folder_children_returns_links(mock_http: Mock) -> None:
                         "NodeKey": "key",
                         "NodePassphrase": "pass",
                         "State": 1,
+                        "CreateTime": 1700000000,
+                        "ModifyTime": 1700000001,
                         "FileProperties": {"ContentKeyPacket": "ck"},
                     },
                     {
@@ -148,6 +151,8 @@ async def test_list_folder_children_returns_links(mock_http: Mock) -> None:
                         "NodeKey": "key",
                         "NodePassphrase": "pass",
                         "State": 1,
+                        "CreateTime": 1700000000,
+                        "ModifyTime": 1700000001,
                         "FileProperties": None,
                     },
                 ],
@@ -167,14 +172,32 @@ async def test_list_folder_children_paginates(mock_http: Mock) -> None:
     first_response = make_success_response(
         {
             "Links": [
-                {"LinkID": f"link-{i}", "Type": 2, "State": 1, "FileProperties": None}
+                {
+                    "LinkID": f"link-{i}",
+                    "Type": 2,
+                    "State": 1,
+                    "Name": f"file-{i}",
+                    "CreateTime": 1700000000,
+                    "ModifyTime": 1700000001,
+                    "FileProperties": None,
+                }
                 for i in range(150)
             ],
         }
     )
     second_response = make_success_response(
         {
-            "Links": [{"LinkID": "link-150", "Type": 2, "State": 1, "FileProperties": None}],
+            "Links": [
+                {
+                    "LinkID": "link-150",
+                    "Type": 2,
+                    "State": 1,
+                    "Name": "file-150",
+                    "CreateTime": 1700000000,
+                    "ModifyTime": 1700000001,
+                    "FileProperties": None,
+                }
+            ],
         }
     )
 
@@ -218,12 +241,14 @@ async def test_get_revision_blocks_returns_blocks(mock_http: Mock) -> None:
                         "URL": "https://storage/block1",
                         "EncSignature": "sig1",
                         "Hash": "hash1",
+                        "Size": 1024,
                     },
                     {
                         "Index": 2,
                         "URL": "https://storage/block2",
                         "EncSignature": "sig2",
                         "Hash": "hash2",
+                        "Size": 2048,
                     },
                 ],
             }
@@ -257,6 +282,7 @@ async def test_link_parses_timestamps(mock_http: Mock) -> None:
                     "LinkID": "link-1",
                     "Type": 1,
                     "State": 1,
+                    "Name": "folder-1",
                     "CreateTime": 1700000000,
                     "ModifyTime": 1700000001,
                     "FileProperties": None,
@@ -281,6 +307,7 @@ async def test_link_handles_missing_timestamps(mock_http: Mock) -> None:
                     "LinkID": "link-1",
                     "Type": 1,
                     "State": 1,
+                    "Name": "folder-1",
                     "FileProperties": None,
                 },
             }
@@ -291,11 +318,6 @@ async def test_link_handles_missing_timestamps(mock_http: Mock) -> None:
 
     assert link.created_at is None
     assert link.modified_at is None
-
-
-# =========================================================================
-# Integration tests with recorded fixtures
-# =========================================================================
 
 
 @pytest.mark.asyncio

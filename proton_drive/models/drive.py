@@ -23,6 +23,14 @@ class LinkState(IntEnum):
     TRASHED = 2
 
 
+class RevisionState(IntEnum):
+    """State of a file revision."""
+
+    DRAFT = 0
+    ACTIVE = 1
+    OBSOLETE = 2
+
+
 @dataclass(frozen=True, kw_only=True)
 class Volume:
     """

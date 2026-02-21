@@ -53,6 +53,11 @@ class TreeService:
         self._key_manager = key_manager
         self._share: Share | None = None
 
+    @property
+    def share(self) -> Share | None:
+        """The currently initialized share, or None if not yet initialized."""
+        return self._share
+
     async def initialize_share(self, share: Share | None = None) -> Share:
         """
         Initialize the share and unlock its key.

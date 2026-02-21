@@ -23,7 +23,7 @@ async def get_volumes(http: AsyncHttpClient) -> list[Volume]:
         Volume(
             volume_id=v["VolumeID"],
             share_id=v.get("Share", {}).get("ShareID", v.get("ShareID", "")),
-            state=v.get("State", 1),
+            state=v["State"],
             created_at=_parse_timestamp(v.get("CreateTime")),
         )
         for v in volumes
@@ -36,13 +36,13 @@ async def get_share(http: AsyncHttpClient, share_id: str) -> Share:
 
     return Share(
         share_id=response["ShareID"],
-        volume_id=response.get("VolumeID", ""),
+        volume_id=response["VolumeID"],
         link_id=response["LinkID"],
         address_id=response["AddressID"],
         address_key_id=response["AddressKeyID"],
         armored_key=response["Key"],
         encrypted_passphrase=response["Passphrase"],
-        state=response.get("State", LinkState.ACTIVE),
+        state=response["State"],
     )
 
 
@@ -57,13 +57,13 @@ async def get_link(http: AsyncHttpClient, share_id: str, link_id: str) -> Link:
         link_id=link_data["LinkID"],
         parent_link_id=link_data.get("ParentLinkID"),
         share_id=share_id,
-        node_type=NodeType(link_data.get("Type", NodeType.FILE)),
-        encrypted_name=link_data.get("Name", ""),
+        node_type=NodeType(link_data["Type"]),
+        encrypted_name=link_data["Name"],
         armored_node_key=link_data.get("NodeKey"),
         encrypted_node_passphrase=link_data.get("NodePassphrase"),
         size=link_data.get("Size", 0),
         mime_type=link_data.get("MIMEType", ""),
-        state=LinkState(link_data.get("State", LinkState.ACTIVE)),
+        state=LinkState(link_data["State"]),
         created_at=_parse_timestamp(link_data.get("CreateTime")),
         modified_at=_parse_timestamp(link_data.get("ModifyTime")),
         content_key_packet=file_props.get("ContentKeyPacket"),
@@ -103,13 +103,13 @@ async def list_folder_children(
                 link_id=link_data["LinkID"],
                 parent_link_id=link_data.get("ParentLinkID"),
                 share_id=share_id,
-                node_type=NodeType(link_data.get("Type", NodeType.FILE)),
-                encrypted_name=link_data.get("Name", ""),
+                node_type=NodeType(link_data["Type"]),
+                encrypted_name=link_data["Name"],
                 armored_node_key=link_data.get("NodeKey"),
                 encrypted_node_passphrase=link_data.get("NodePassphrase"),
                 size=link_data.get("Size", 0),
                 mime_type=link_data.get("MIMEType", ""),
-                state=LinkState(link_data.get("State", LinkState.ACTIVE)),
+                state=LinkState(link_data["State"]),
                 created_at=_parse_timestamp(link_data.get("CreateTime")),
                 modified_at=_parse_timestamp(link_data.get("ModifyTime")),
                 content_key_packet=file_props.get("ContentKeyPacket"),
@@ -134,8 +134,8 @@ async def get_file_revisions(
     return [
         FileRevision(
             revision_id=r["ID"],
-            size=r.get("Size", 0),
-            state=r.get("State", 0),
+            size=r["Size"],
+            state=r["State"],
             created_at=_parse_timestamp(r.get("CreateTime")),
             manifest_signature=r.get("ManifestSignature"),
         )
@@ -156,10 +156,10 @@ async def get_revision_blocks(
 
     return [
         FileBlock(
-            index=b.get("Index", 0),
+            index=b["Index"],
             url=b["URL"],
-            encrypted_hash=b.get("Hash", ""),
-            size=b.get("Size", 0),
+            encrypted_hash=b["Hash"],
+            size=b["Size"],
         )
         for b in blocks
     ]

@@ -110,8 +110,8 @@ async def list_folder_children(
                 size=link_data.get("Size", 0),
                 mime_type=link_data.get("MIMEType", ""),
                 state=LinkState(link_data["State"]),
-                created_at=_parse_timestamp(link_data.get("CreateTime")),
-                modified_at=_parse_timestamp(link_data.get("ModifyTime")),
+                created_at=_parse_timestamp(link_data["CreateTime"]),
+                modified_at=_parse_timestamp(link_data["ModifyTime"]),
                 content_key_packet=file_props.get("ContentKeyPacket"),
                 active_revision_id=(file_props.get("ActiveRevision") or {}).get("ID"),
             )
@@ -134,7 +134,7 @@ async def get_file_revisions(
     return [
         FileRevision(
             revision_id=r["ID"],
-            size=r["Size"],
+            size=r.get("Size", 0),
             state=r["State"],
             created_at=_parse_timestamp(r.get("CreateTime")),
             manifest_signature=r.get("ManifestSignature"),
@@ -159,7 +159,7 @@ async def get_revision_blocks(
             index=b["Index"],
             url=b["URL"],
             encrypted_hash=b["Hash"],
-            size=b["Size"],
+            size=b.get("Size"),
         )
         for b in blocks
     ]

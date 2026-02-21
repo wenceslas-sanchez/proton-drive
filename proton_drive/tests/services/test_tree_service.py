@@ -1,53 +1,19 @@
+from collections.abc import Callable
 from unittest.mock import AsyncMock, Mock, patch
 
 import pytest
 
 from proton_drive.models.auth import AddressKey, UserKey
-from proton_drive.models.drive import Link, LinkState, NodeType, Share, Volume
+from proton_drive.models.drive import Link, NodeType, Share, Volume
 from proton_drive.services.tree_service import TreeService
-
-SHARE_ID = "share_abc"
-VOLUME_ID = "vol_abc"
-ADDRESS_ID = "addr_abc"
-ADDRESS_KEY_ID = "addrkey_abc"
-ROOT_LINK_ID = "link_root"
-FOLDER_LINK_ID = "link_folder"
-FILE_LINK_ID = "link_file"
-ARMORED_KEY = "-----BEGIN PGP MESSAGE-----\ntest\n-----END PGP MESSAGE-----"
-
-
-def make_volume() -> Volume:
-    return Volume(volume_id=VOLUME_ID, share_id=SHARE_ID, state=1)
-
-
-def make_share() -> Share:
-    return Share(
-        share_id=SHARE_ID,
-        volume_id=VOLUME_ID,
-        link_id=ROOT_LINK_ID,
-        address_id=ADDRESS_ID,
-        address_key_id=ADDRESS_KEY_ID,
-        armored_key=ARMORED_KEY,
-        encrypted_passphrase="enc_passphrase",
-    )
-
-
-def make_link(
-    link_id: str,
-    name: str = "encrypted_name",
-    node_type: NodeType = NodeType.FILE,
-    state: LinkState = LinkState.ACTIVE,
-    with_key: bool = True,
-) -> Link:
-    return Link(
-        link_id=link_id,
-        parent_link_id=ROOT_LINK_ID,
-        share_id=SHARE_ID,
-        node_type=node_type,
-        encrypted_name=name,
-        armored_node_key=ARMORED_KEY if with_key else None,
-        encrypted_node_passphrase="enc_pass" if with_key else None,
-    )
+from proton_drive.tests.services.constants import (
+    ADDRESS_ID,
+    ADDRESS_KEY_ID,
+    ARMORED_KEY,
+    FILE_LINK_ID,
+    FOLDER_LINK_ID,
+    ROOT_LINK_ID,
+)
 
 
 def make_address_key() -> AddressKey:
@@ -59,11 +25,6 @@ def make_user_key() -> UserKey:
 
 
 @pytest.fixture
-def mock_http() -> Mock:
-    return Mock()
-
-
-@pytest.fixture
 def tree_service(mock_http: Mock, mock_key_manager: Mock) -> TreeService:
     return TreeService(mock_http, mock_key_manager)
 
@@ -71,6 +32,7 @@ def tree_service(mock_http: Mock, mock_key_manager: Mock) -> TreeService:
 @pytest.mark.asyncio
 async def test_initialize_share_returns_cached_share_if_already_initialized(
     tree_service: TreeService,
+    make_share: Callable[[], Share],
 ) -> None:
     existing_share = make_share()
     tree_service._share = existing_share
@@ -83,6 +45,8 @@ async def test_initialize_share_returns_cached_share_if_already_initialized(
 async def test_initialize_share_fetches_default_share_when_none_provided(
     tree_service: TreeService,
     mock_key_manager: Mock,
+    make_share: Callable[[], Share],
+    make_volume: Callable[[], Volume],
 ) -> None:
     share = make_share()
     with (
@@ -123,6 +87,8 @@ async def test_initialize_share_raises_when_no_volumes(tree_service: TreeService
 async def test_build_tree_returns_root_with_children(
     tree_service: TreeService,
     mock_key_manager: Mock,
+    make_share: Callable[[], Share],
+    make_link: Callable[..., Link],
 ) -> None:
     tree_service._share = make_share()
     root_link = make_link(ROOT_LINK_ID, node_type=NodeType.FOLDER)
@@ -150,6 +116,8 @@ async def test_build_tree_returns_root_with_children(
 async def test_list_directory_returns_root_children_for_slash(
     tree_service: TreeService,
     mock_key_manager: Mock,
+    make_share: Callable[[], Share],
+    make_link: Callable[..., Link],
 ) -> None:
     tree_service._share = make_share()
     root_link = make_link(ROOT_LINK_ID, node_type=NodeType.FOLDER)
@@ -175,6 +143,8 @@ async def test_list_directory_returns_root_children_for_slash(
 @pytest.mark.asyncio
 async def test_list_directory_returns_empty_when_path_not_found(
     tree_service: TreeService,
+    make_share: Callable[[], Share],
+    make_link: Callable[..., Link],
 ) -> None:
     tree_service._share = make_share()
     root_link = make_link(ROOT_LINK_ID, node_type=NodeType.FOLDER)
@@ -198,6 +168,8 @@ async def test_list_directory_returns_empty_when_path_not_found(
 async def test_list_directory_traverses_nested_path(
     tree_service: TreeService,
     mock_key_manager: Mock,
+    make_share: Callable[[], Share],
+    make_link: Callable[..., Link],
 ) -> None:
     tree_service._share = make_share()
     root_link = make_link(ROOT_LINK_ID, node_type=NodeType.FOLDER)
@@ -234,6 +206,8 @@ async def test_get_node_by_path_returns_none_for_empty_path(tree_service: TreeSe
 async def test_get_node_by_path_returns_node_at_path(
     tree_service: TreeService,
     mock_key_manager: Mock,
+    make_share: Callable[[], Share],
+    make_link: Callable[..., Link],
 ) -> None:
     tree_service._share = make_share()
     root_link = make_link(ROOT_LINK_ID, node_type=NodeType.FOLDER)
@@ -259,6 +233,8 @@ async def test_get_node_by_path_returns_node_at_path(
 @pytest.mark.asyncio
 async def test_get_node_by_path_returns_none_when_not_found(
     tree_service: TreeService,
+    make_share: Callable[[], Share],
+    make_link: Callable[..., Link],
 ) -> None:
     tree_service._share = make_share()
     root_link = make_link(ROOT_LINK_ID, node_type=NodeType.FOLDER)
@@ -278,7 +254,10 @@ async def test_get_node_by_path_returns_none_when_not_found(
     assert node is None
 
 
-def test_cleanup_clears_share(tree_service: TreeService) -> None:
+def test_cleanup_clears_share(
+    tree_service: TreeService,
+    make_share: Callable[[], Share],
+) -> None:
     tree_service._share = make_share()
     tree_service.cleanup()
     assert tree_service._share is None

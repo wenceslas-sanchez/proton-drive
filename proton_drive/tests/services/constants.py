@@ -1,0 +1,8 @@
+SHARE_ID = "share_abc"
+VOLUME_ID = "vol_abc"
+ADDRESS_ID = "addr_abc"
+ADDRESS_KEY_ID = "addrkey_abc"
+ROOT_LINK_ID = "link_root"
+FOLDER_LINK_ID = "link_folder"
+FILE_LINK_ID = "link_file"
+ARMORED_KEY = "-----BEGIN PGP MESSAGE-----\ntest\n-----END PGP MESSAGE-----"

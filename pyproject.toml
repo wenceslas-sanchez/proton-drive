@@ -18,7 +18,7 @@ classifiers = [
 dependencies = [
     "httpx==0.28.1",
     "pgpy==0.6.0",
-    "cryptography==46.0.4",
+    "cryptography==46.0.5",
     "proton-client==0.5.1",
     "bcrypt==5.0.0",
     "python-gnupg==0.5.6",

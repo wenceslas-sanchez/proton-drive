@@ -1,6 +1,9 @@
 import hashlib
+import os
 
 import pytest
+from cryptography.hazmat.backends import default_backend
+from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
 
 from proton_drive.crypto.aes import (
     _parse_literal_data_packet,
@@ -17,6 +20,39 @@ def _create_session_key(
 ) -> SessionKey:
     key_data = b"\x00" * algorithm.key_size
     return SessionKey(algorithm=algorithm, key_data=key_data)
+
+
+def _build_literal_data_packet(content: bytes) -> bytes:
+    """Build a minimal new-format literal data packet (tag 11)."""
+    # format=binary, no filename, date=0
+    body = b"b" + b"\x00" + b"\x00\x00\x00\x00" + content
+    length = len(body)
+    return b"\xcb" + bytes([length]) + body
+
+
+def _build_seipd_packet(content: bytes, session_key: SessionKey) -> bytes:
+    """
+    Build a valid SEIPD v1 encrypted packet from plaintext content.
+
+    Plaintext layout: [random prefix (block_size bytes)] + [prefix[-2:]] +
+                      [literal data packet] + [\\xd3\\x14] + [sha1 hash (20 bytes)]
+    Then CFB-encrypt with zero IV and prepend version byte 0x01.
+    """
+    block_size = session_key.block_size
+    random_prefix = os.urandom(block_size)
+    check_bytes = random_prefix[-2:]
+    literal_packet = _build_literal_data_packet(content)
+    mdc_header = b"\xd3\x14"
+    data_before_hash = random_prefix + check_bytes + literal_packet + mdc_header
+    mdc_hash = hashlib.sha1(data_before_hash).digest()
+    plaintext = data_before_hash + mdc_hash
+
+    iv = bytes(block_size)
+    encryptor = Cipher(
+        algorithms.AES(session_key.key_data), modes.CFB(iv), backend=default_backend()
+    ).encryptor()
+    ciphertext = encryptor.update(plaintext) + encryptor.finalize()
+    return b"\x01" + ciphertext
 
 
 def test_decrypt_seipd_packet_raises_on_empty_data() -> None:
@@ -226,3 +262,56 @@ def test_parse_seipd_from_block_handles_five_byte_length() -> None:
     result = parse_seipd_from_block(block)
 
     assert result == content
+
+
+def test_decrypt_seipd_packet_roundtrip_aes256() -> None:
+    session_key = _create_session_key(SymmetricAlgorithm.AES_256)
+    content = b"Hello, Proton Drive!"
+
+    packet = _build_seipd_packet(content, session_key)
+    result = decrypt_seipd_packet(packet, session_key)
+
+    assert result == content
+
+
+def test_decrypt_seipd_packet_roundtrip_empty_content() -> None:
+    session_key = _create_session_key(SymmetricAlgorithm.AES_256)
+    content = b""
+
+    packet = _build_seipd_packet(content, session_key)
+    result = decrypt_seipd_packet(packet, session_key)
+
+    assert result == content
+
+
+def test_decrypt_seipd_packet_roundtrip_large_content() -> None:
+    session_key = _create_session_key(SymmetricAlgorithm.AES_256)
+    content = os.urandom(64 * 1024)  # 64 KB
+
+    packet = _build_seipd_packet(content, session_key)
+    result = decrypt_seipd_packet(packet, session_key)
+
+    assert result == content
+
+
+def test_decrypt_seipd_packet_wrong_key_raises_integrity_error() -> None:
+    good_key = _create_session_key(SymmetricAlgorithm.AES_256)
+    bad_key = SessionKey(algorithm=SymmetricAlgorithm.AES_256, key_data=b"\xff" * 32)
+    content = b"secret data"
+
+    packet = _build_seipd_packet(content, good_key)
+
+    with pytest.raises(IntegrityError):
+        decrypt_seipd_packet(packet, bad_key)
+
+
+def test_decrypt_seipd_packet_tampered_ciphertext_raises_integrity_error() -> None:
+    session_key = _create_session_key(SymmetricAlgorithm.AES_256)
+    content = b"secret data"
+    packet = bytearray(_build_seipd_packet(content, session_key))
+
+    # Flip a bit in the middle of the ciphertext
+    packet[len(packet) // 2] ^= 0xFF
+
+    with pytest.raises(IntegrityError):
+        decrypt_seipd_packet(bytes(packet), session_key)

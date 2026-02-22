@@ -58,34 +58,16 @@ def decrypt_seipd_packet(encrypted_data: bytes, session_key: SessionKey) -> byte
 
     plaintext = _decrypt_openpgp_cfb(ciphertext, session_key.key_data, block_size)
     _verify_mdc(plaintext)
-    literal_data = plaintext[:-_MDC_PACKET_SIZE]
+    # Strip prefix (block_size random bytes + 2 check bytes) and trailing MDC
+    literal_data = plaintext[prefix_size:-_MDC_PACKET_SIZE]
 
     return _parse_literal_data_packet(literal_data)
 
 
 def _decrypt_openpgp_cfb(ciphertext: bytes, key: bytes, block_size: int) -> bytes:
-    prefix_size = block_size + 2
-    prefix_ciphertext = ciphertext[:prefix_size]
-    rest_ciphertext = ciphertext[prefix_size:]
-
-    # Decrypt prefix with zero IV
     iv = bytes(block_size)
-    cipher = Cipher(algorithms.AES(key), modes.CFB(iv), backend=default_backend())
-    decryptor = cipher.decryptor()
-    prefix_plaintext = decryptor.update(prefix_ciphertext) + decryptor.finalize()
-
-    # Verify prefix: last 2 bytes of random data should repeat
-    if prefix_plaintext[block_size - 2 : block_size] != prefix_plaintext[block_size:]:
-        msg = "CFB prefix verification failed, possibly wrong key"
-        raise BlockDecryptionError(msg)
-
-    # Resync IV for rest of data
-    resync_iv = prefix_ciphertext[2:prefix_size]
-    cipher = Cipher(algorithms.AES(key), modes.CFB(resync_iv), backend=default_backend())
-    decryptor = cipher.decryptor()
-    rest_plaintext = decryptor.update(rest_ciphertext) + decryptor.finalize()
-
-    return prefix_plaintext + rest_plaintext
+    decryptor = Cipher(algorithms.AES(key), modes.CFB(iv), backend=default_backend()).decryptor()
+    return decryptor.update(ciphertext) + decryptor.finalize()
 
 
 def _verify_mdc(plaintext: bytes) -> None:

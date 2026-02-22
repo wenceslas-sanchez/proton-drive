@@ -3,7 +3,6 @@ import hashlib
 import pytest
 
 from proton_drive.crypto.aes import (
-    _decrypt_openpgp_cfb,
     _parse_literal_data_packet,
     _verify_mdc,
     decrypt_seipd_packet,
@@ -53,15 +52,6 @@ def test_decrypt_seipd_packet_raises_on_short_ciphertext() -> None:
 
     with pytest.raises(BlockDecryptionError, match="Encrypted data too short"):
         decrypt_seipd_packet(data, session_key)
-
-
-def test_decrypt_openpgp_cfb_raises_on_prefix_mismatch() -> None:
-    key = b"\x00" * 32
-    block_size = 16
-    ciphertext = b"\x00" * (block_size + 2 + 50)
-
-    with pytest.raises(BlockDecryptionError, match="CFB prefix verification failed"):
-        _decrypt_openpgp_cfb(ciphertext, key, block_size)
 
 
 def test_verify_mdc_raises_on_short_data() -> None:

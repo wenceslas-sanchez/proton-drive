@@ -389,7 +389,7 @@ lint = [
 [package.metadata]
 requires-dist = [
     { name = "bcrypt", specifier = ">=4.3.0" },
-    { name = "cryptography", specifier = ">=3.4.0" },
+    { name = "cryptography", specifier = ">=46.0.0" },
     { name = "httpx", specifier = ">=0.24.0" },
     { name = "pgpy", specifier = ">=0.6.0" },
     { name = "proton-client", specifier = ">=0.5.1" },

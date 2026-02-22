@@ -1,4 +1,4 @@
-name: Run Tests
+name: Run Integration testTests
 
 on:
   push:
@@ -21,7 +21,7 @@ jobs:
       - name: Install dependencies
         run: uv sync --group dev
 
-      - name: Pytest (integration)
+      - name: Pytest
         run: uv run pytest -m integration
         env:
           PROTON_TEST_USERNAME: ${{ secrets.TEST_PROTON_ACCOUNT_USER }}

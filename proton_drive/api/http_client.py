@@ -24,28 +24,30 @@ from proton_drive.exceptions import (
 
 logger = structlog.get_logger(__name__)
 
-SENSITIVE_KEYS = frozenset(
+_SENSITIVE_KEYS_LOWER = frozenset(
     {
-        "AccessToken",
-        "RefreshToken",
-        "UID",
-        "SRPSession",
-        "Salt",
-        "Modulus",
-        "ServerEphemeral",
-        "ServerProof",
-        "PrivateKey",
-        "Passphrase",
-        "NodePassphrase",
-        "NodeKey",
-        "Key",
-        "KeySalt",
-        "KeyPacket",
-        "ContentKeyPacket",
-        "NodeHashKey",
-        "RecoverySecret",
-        "RootLinkRecoveryPassphrase",
-        "Password",
+        "accesstoken",
+        "refreshtoken",
+        "uid",
+        "srpsession",
+        "salt",
+        "modulus",
+        "serverephemeral",
+        "serverproof",
+        "privatekey",
+        "passphrase",
+        "nodepassphrase",
+        "nodepassphrasetmp",
+        "nodekey",
+        "key",
+        "keysalt",
+        "keypacket",
+        "contentkeypacket",
+        "nodehashkey",
+        "recoverysecret",
+        "rootlinkrecoverypassphrase",
+        "password",
+        "token",
     }
 )
 
@@ -54,6 +56,7 @@ def sanitize_for_log(data: dict[str, Any]) -> dict[str, Any]:
     """
     Remove sensitive fields from a dict before logging.
 
+    Matching is case-insensitive to catch API field name variations.
     Recursively sanitizes nested dictionaries and lists.
 
     Args:
@@ -64,7 +67,7 @@ def sanitize_for_log(data: dict[str, Any]) -> dict[str, Any]:
     """
     result = {}
     for key, value in data.items():
-        if key in SENSITIVE_KEYS:
+        if key.lower() in _SENSITIVE_KEYS_LOWER:
             result[key] = "***"
         elif isinstance(value, dict):
             result[key] = sanitize_for_log(value)
@@ -254,7 +257,7 @@ class AsyncHttpClient:
                 endpoint=endpoint,
             ) from e
 
-        _log_debug_api_request(method, endpoint, data)
+        _log_debug_api_response(method, endpoint, data)
 
         code = data.get("Code", 0)
 
@@ -407,3 +410,8 @@ class AsyncHttpClient:
 def _log_debug_api_request(method: str, endpoint: str, json: dict[str, Any] | None = None) -> None:
     body = sanitize_for_log(json) if json is not None else {}
     logger.debug("API request", method=method, endpoint=endpoint, body=body)
+
+
+def _log_debug_api_response(method: str, endpoint: str, data: dict[str, Any] | None = None) -> None:
+    body = sanitize_for_log(data) if data is not None else {}
+    logger.debug("API response", method=method, endpoint=endpoint, body=body)

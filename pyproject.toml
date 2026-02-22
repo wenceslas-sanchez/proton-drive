@@ -8,12 +8,29 @@ license = { text = "GPL-3.0-only" }
 authors = [
     { name = "Wenceslas Sanchez" }
 ]
-keywords = ["proton", "drive", "cloud", "storage", "encryption"]
+keywords = [
+    "proton",
+    "proton-drive",
+    "protonmail",
+    "cloud-storage",
+    "end-to-end-encryption",
+    "e2ee",
+    "pgp",
+    "openpgp",
+    "srp",
+    "async",
+    "asyncio",
+    "privacy",
+]
 classifiers = [
     "Development Status :: 3 - Alpha",
     "Intended Audience :: Developers",
     "License :: OSI Approved :: GNU General Public License v3 (GPLv3)",
     "Programming Language :: Python :: 3.14",
+    "Topic :: Security :: Cryptography",
+    "Topic :: Internet :: File Transfer Protocol (FTP)",
+    "Framework :: AsyncIO",
+    "Typing :: Typed",
 ]
 dependencies = [
     "httpx==0.28.1",

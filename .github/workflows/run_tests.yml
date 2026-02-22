@@ -27,7 +27,7 @@ jobs:
         run: uv run pytest --verbose
 
       - name: Pytest (integration)
-        run: uv run pytest -m integration --verbose
+        run: uv run pytest -m integration
         env:
           PROTON_TEST_USERNAME: ${{ secrets.TEST_PROTON_ACCOUNT_USER }}
           PROTON_TEST_PASSWORD: ${{ secrets.TEST_PROTON_ACCOUNT_PWD }}

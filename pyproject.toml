@@ -33,14 +33,14 @@ classifiers = [
     "Typing :: Typed",
 ]
 dependencies = [
-    "httpx==0.28.1",
-    "pgpy==0.6.0",
-    "cryptography==46.0.5",
-    "proton-client==0.5.1",
-    "bcrypt==5.0.0",
-    "python-gnupg==0.5.6",
-    "structlog==25.5.0",
-    "standard-imghdr==3.13.0",  # Required for pgpy on Python 3.13+
+    "httpx>=0.24.0",
+    "pgpy>=0.6.0",
+    "cryptography>=3.4.0",
+    "proton-client>=0.5.1",
+    "bcrypt>=4.3.0",
+    "python-gnupg>=0.5.0",
+    "structlog>=21.2.0",
+    "standard-imghdr>=3.10.0",  # Required for pgpy on Python 3.13+
 ]
 
 [dependency-groups]

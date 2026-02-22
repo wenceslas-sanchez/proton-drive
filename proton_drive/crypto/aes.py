@@ -7,7 +7,6 @@ Symmetrically Encrypted Integrity Protected Data (SEIPD) format.
 
 import hashlib
 
-from cryptography.hazmat.backends import default_backend
 from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
 
 from proton_drive.exceptions import BlockDecryptionError, IntegrityError
@@ -65,9 +64,20 @@ def decrypt_seipd_packet(encrypted_data: bytes, session_key: SessionKey) -> byte
 
 
 def _decrypt_openpgp_cfb(ciphertext: bytes, key: bytes, block_size: int) -> bytes:
-    iv = bytes(block_size)
-    decryptor = Cipher(algorithms.AES(key), modes.CFB(iv), backend=default_backend()).decryptor()
-    return decryptor.update(ciphertext) + decryptor.finalize()
+    """Decrypt using OpenPGP CFB mode (full-block feedback, zero IV).
+
+    OpenPGP CFB: P[i] = C[i] XOR AES_encrypt(C[i-1]), with C[-1] = 0^block_size.
+    """
+    ecb = Cipher(algorithms.AES(key), modes.ECB()).encryptor()
+    feedback = bytes(block_size)
+    plaintext = bytearray()
+    for i in range(0, len(ciphertext), block_size):
+        block = ciphertext[i : i + block_size]
+        keystream = ecb.update(feedback)
+        plaintext.extend(b ^ k for b, k in zip(block, keystream))
+        feedback = block if len(block) == block_size else block + bytes(block_size - len(block))
+    ecb.finalize()
+    return bytes(plaintext)
 
 
 def _verify_mdc(plaintext: bytes) -> None:

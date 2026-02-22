@@ -30,56 +30,40 @@ EXPECTED_FILE_HASHES = {
 }
 
 
-def collect_paths(node: DriveNode, current: str = "") -> dict[str, NodeType]:
+def _collect_paths(node: DriveNode, current: str = "") -> dict[str, NodeType]:
     result = {}
     for child in node.children:
         path = f"{current}/{child.name}"
         result[path] = child.node_type
         if child.node_type == NodeType.FOLDER:
-            result.update(collect_paths(child, path))
+            result.update(_collect_paths(child, path))
     return result
 
 
-@pytest.fixture(scope="module")
-async def authenticated_client(proton_credentials: tuple[str, str]) -> ProtonDriveClient:
+@pytest.mark.integration
+async def test_authenticate_succeeds(proton_credentials: tuple[str, str]) -> None:
     username, password = proton_credentials
     async with ProtonDriveClient() as client:
         await client.authenticate(username, password)
-        yield client
+        assert client.is_authenticated
+        assert client.has_drive_access
 
 
 @pytest.mark.integration
-async def test_authenticate_succeeds(authenticated_client: ProtonDriveClient) -> None:
-    assert authenticated_client.is_authenticated
-    assert authenticated_client.has_drive_access
+async def test_drive(proton_credentials: tuple[str, str]) -> None:
+    username, password = proton_credentials
+    async with ProtonDriveClient() as client:
+        await client.authenticate(username, password)
 
+        root = await client.build_tree()
+        assert isinstance(root, DriveNode)
+        assert root.node_type == NodeType.FOLDER
+        assert _collect_paths(root) == EXPECTED_TREE
 
-@pytest.mark.integration
-async def test_build_tree_matches_expected(authenticated_client: ProtonDriveClient) -> None:
-    root = await authenticated_client.build_tree()
-    assert isinstance(root, DriveNode)
-    assert root.node_type == NodeType.FOLDER
+        assert await client.get_node("/this_path_does_not_exist_xyz") is None
 
-    actual = collect_paths(root)
-    assert actual == EXPECTED_TREE
-
-
-@pytest.mark.integration
-async def test_get_node_returns_none_for_missing_path(
-    authenticated_client: ProtonDriveClient,
-) -> None:
-    node = await authenticated_client.get_node("/this_path_does_not_exist_xyz")
-    assert node is None
-
-
-@pytest.mark.integration
-@pytest.mark.parametrize("path,expected_hash", list(EXPECTED_FILE_HASHES.items()))
-async def test_download_file_hash_matches(
-    authenticated_client: ProtonDriveClient,
-    path: str,
-    expected_hash: str,
-) -> None:
-    hasher = hashlib.sha256()
-    async for chunk in authenticated_client.download_file(path):
-        hasher.update(chunk)
-    assert hasher.hexdigest() == expected_hash
+        for path, expected_hash in EXPECTED_FILE_HASHES.items():
+            hasher = hashlib.sha256()
+            async for chunk in client.download_file(path):
+                hasher.update(chunk)
+            assert hasher.hexdigest() == expected_hash, f"Hash mismatch for {path}"

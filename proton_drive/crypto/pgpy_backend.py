@@ -10,12 +10,17 @@ from dataclasses import dataclass
 from typing import Any, Iterator
 
 import pgpy
-from pgpy.packet.fields import MPI
+from pgpy.packet.fields import ECDHCipherText
 
 from proton_drive.crypto.secure_bytes import SecureBytes
 from proton_drive.crypto.session_key import parse_pkesk_packet
 from proton_drive.exceptions import CryptoError, KeyDecryptionError, SessionKeyError
-from proton_drive.models.crypto import PKESKPacket, SessionKey, SymmetricAlgorithm
+from proton_drive.models.crypto import (
+    PKESKPacket,
+    PublicKeyAlgorithm,
+    SessionKey,
+    SymmetricAlgorithm,
+)
 
 _VALID_KEY_SIZES = (16, 24, 32)
 
@@ -125,7 +130,7 @@ class PgpyBackend:
         try:
             pkesk = parse_pkesk_packet(content_key_packet)
             encryption_key = self._find_encryption_key(private_key.pgpy_key)
-            decrypted_payload = self._decrypt_session_key_mpi(encryption_key, pkesk)
+            decrypted_payload = self._decrypt_session_key(encryption_key, pkesk)
             return self._parse_session_key_payload(decrypted_payload)
         except SessionKeyError:
             raise
@@ -169,14 +174,17 @@ class PgpyBackend:
         return key
 
     @staticmethod
-    def _decrypt_session_key_mpi(encryption_key: pgpy.PGPKey, pkesk: PKESKPacket) -> bytes:
-        try:
-            encrypted_mpi = MPI(pkesk.encrypted_session_key)
-            decrypted = encryption_key._key.keymaterial.decrypt(encrypted_mpi)
-            return bytes(decrypted)
-        except Exception as e:
-            msg = f"Manual PKESK decryption failed: {e}"
-            raise SessionKeyError(msg) from e
+    def _decrypt_session_key(encryption_key: pgpy.PGPKey, pkesk: PKESKPacket) -> bytes:
+        if pkesk.algorithm != PublicKeyAlgorithm.ECDH:
+            msg = f"Unsupported public key algorithm: {pkesk.algorithm}"
+            raise SessionKeyError(msg)
+        return PgpyBackend._decrypt_ecdh(encryption_key, pkesk)
+
+    @staticmethod
+    def _decrypt_ecdh(encryption_key: pgpy.PGPKey, pkesk: PKESKPacket) -> bytes:
+        ct = ECDHCipherText()
+        ct.parse(bytearray(pkesk.encrypted_session_key))
+        return bytes(ct.decrypt(encryption_key._key))
 
     def _parse_session_key_payload(self, payload: bytes) -> SessionKey:
         """Parse decrypted session key payload: [algo(1)] + [key(N)] + [checksum(2)]."""

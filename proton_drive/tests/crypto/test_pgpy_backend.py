@@ -86,13 +86,13 @@ def test_extract_session_key_returns_session_key() -> None:
     mock_pkesk = PKESKPacket(
         version=3,
         key_id=b"12345678",
-        algorithm=PublicKeyAlgorithm.RSA_ENCRYPT_OR_SIGN,
+        algorithm=PublicKeyAlgorithm.ECDH,
         encrypted_session_key=b"encrypted",
     )
 
     with (
         patch("proton_drive.crypto.pgpy_backend.parse_pkesk_packet", return_value=mock_pkesk),
-        patch.object(backend, "_decrypt_session_key_mpi", return_value=payload),
+        patch.object(PgpyBackend, "_decrypt_session_key", return_value=payload),
     ):
         result = backend.extract_session_key(
             b"dummy_packet", private_key, SecureBytes(passphrase.encode())

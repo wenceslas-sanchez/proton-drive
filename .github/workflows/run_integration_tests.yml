@@ -3,8 +3,6 @@ name: Run Tests
 on:
   push:
     branches: [ main ]
-  pull_request:
-  workflow_dispatch:
 
 jobs:
   tests:
@@ -23,5 +21,8 @@ jobs:
       - name: Install dependencies
         run: uv sync --group dev
 
-      - name: Pytest (unit)
-        run: uv run pytest --verbose
+      - name: Pytest (integration)
+        run: uv run pytest -m integration
+        env:
+          PROTON_TEST_USERNAME: ${{ secrets.TEST_PROTON_ACCOUNT_USER }}
+          PROTON_TEST_PASSWORD: ${{ secrets.TEST_PROTON_ACCOUNT_PWD }}

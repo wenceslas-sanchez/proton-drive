@@ -14,7 +14,6 @@ import bcrypt
 import structlog
 
 from proton_drive.core.cache import LRUCache
-from proton_drive.crypto.pgpy_backend import PgpyBackend
 from proton_drive.crypto.protocol import PGPBackend, PrivateKey
 from proton_drive.crypto.secure_bytes import SecureBytes
 from proton_drive.exceptions import KeyDecryptionError, KeyUnlockError
@@ -99,15 +98,15 @@ class KeyManager:
 
     def __init__(
         self,
-        pgp_backend: PGPBackend | None = None,
+        pgp_backend: PGPBackend,
         cache_size: int = 1000,
     ) -> None:
         """
         Args:
-            pgp_backend: PGP backend for crypto operations. Defaults to PgpyBackend.
+            pgp_backend: PGP backend for crypto operations.
             cache_size: Maximum number of keys to cache (share keys + node keys).
         """
-        self._pgp = pgp_backend if pgp_backend is not None else PgpyBackend()  # todo remove default
+        self._pgp = pgp_backend
         self._auth_keys: dict[str, CachedKey] = {}  # User and address keys
         self._cache = KeyCache(max_size=cache_size)  # Share and node keys
 

@@ -27,7 +27,9 @@ def _build_literal_data_packet(content: bytes) -> bytes:
     # format=binary, no filename, date=0
     body = b"b" + b"\x00" + b"\x00\x00\x00\x00" + content
     length = len(body)
-    return b"\xcb" + bytes([length]) + body
+    # Use 5-byte length encoding for large packets
+    length_bytes = b"\xff" + length.to_bytes(4, "big") if length >= 8384 else bytes([length])
+    return b"\xcb" + length_bytes + body
 
 
 def _build_seipd_packet(content: bytes, session_key: SessionKey) -> bytes:

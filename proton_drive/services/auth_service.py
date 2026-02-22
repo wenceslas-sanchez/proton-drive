@@ -313,8 +313,26 @@ class AuthService:
         """
         Store password securely in memory for 2FA key unlock.
 
-        The password is kept until logout or authentication failure.
+        Security design: The plaintext password must be retained in memory after
+        initial SRP authentication because Proton's key unlock flow requires it
+        in two distinct phases:
+        1. Immediately after auth (no 2FA): used to derive the bcrypt passphrase
+           that unlocks the user's PGP private key.
+        2. After 2FA completion: the same derivation is needed to unlock keys once
+           the session gains full scope.
+
+        Storing the derived key passphrase instead of the raw password is not
+        feasible because the passphrase depends on a per-key salt fetched from the
+        API, which is only retrieved during `_unlock_keys()`.
+
+        Mitigations:
+        - Password is wrapped in `SecureBytes` (memory-locked, zeroed on clear).
+        - `_clear_state()` zeroes and discards it on logout, auth failure, or cleanup.
+        - The previous `SecureBytes` instance (if any) is overwritten and its memory
+          zeroed before the new one is stored.
         """
+        if self._password is not None:
+            self._password.clear()
         self._password = SecureBytes.from_string(password)
 
     def _clear_state(self) -> None:

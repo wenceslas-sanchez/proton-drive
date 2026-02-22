@@ -23,5 +23,11 @@ jobs:
       - name: Install dependencies
         run: uv sync --group dev
 
-      - name: Pytest
+      - name: Pytest (unit)
         run: uv run pytest --verbose
+
+      - name: Pytest (integration)
+        run: uv run pytest -m integration --verbose
+        env:
+          PROTON_TEST_USERNAME: ${{ secrets.TEST_PROTON_ACCOUNT_USER }}
+          PROTON_TEST_PASSWORD: ${{ secrets.TEST_PROTON_ACCOUNT_PWD }}

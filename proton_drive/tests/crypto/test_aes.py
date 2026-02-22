@@ -2,7 +2,6 @@ import hashlib
 import os
 
 import pytest
-from cryptography.hazmat.backends import default_backend
 from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
 
 from proton_drive.crypto.aes import (
@@ -49,12 +48,21 @@ def _build_seipd_packet(content: bytes, session_key: SessionKey) -> bytes:
     mdc_hash = hashlib.sha1(data_before_hash).digest()
     plaintext = data_before_hash + mdc_hash
 
-    iv = bytes(block_size)
-    encryptor = Cipher(
-        algorithms.AES(session_key.key_data), modes.CFB(iv), backend=default_backend()
-    ).encryptor()
-    ciphertext = encryptor.update(plaintext) + encryptor.finalize()
-    return b"\x01" + ciphertext
+    ecb = Cipher(algorithms.AES(session_key.key_data), modes.ECB()).encryptor()
+    feedback = bytes(block_size)
+    ciphertext = bytearray()
+    for i in range(0, len(plaintext), block_size):
+        block = plaintext[i : i + block_size]
+        keystream = ecb.update(feedback)
+        encrypted = bytes(b ^ k for b, k in zip(block, keystream))
+        ciphertext.extend(encrypted)
+        feedback = (
+            encrypted
+            if len(encrypted) == block_size
+            else encrypted + bytes(block_size - len(encrypted))
+        )
+    ecb.finalize()
+    return b"\x01" + bytes(ciphertext)
 
 
 def test_decrypt_seipd_packet_raises_on_empty_data() -> None:

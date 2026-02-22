@@ -1,6 +1,10 @@
+import logging
 import os
 
 import pytest
+import structlog
+
+structlog.configure(wrapper_class=structlog.make_filtering_bound_logger(logging.WARNING))
 
 
 def pytest_collection_modifyitems(config: pytest.Config, items: list) -> None:

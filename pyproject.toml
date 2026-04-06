@@ -50,7 +50,7 @@ dev = [
 ]
 lint = [
     "pre-commit==4.5.1",
-    "ruff==0.15.6",
+    "ruff==0.15.9",
 ]
 
 [build-system]
